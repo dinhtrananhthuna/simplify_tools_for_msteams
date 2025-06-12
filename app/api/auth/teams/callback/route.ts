@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server';
 import { exchangeCodeForTokens } from '@/lib/teams';
 import { saveAuthToken } from '@/lib/auth';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;

@@ -1,6 +1,8 @@
 import { executeQuery } from '../../../lib/db';
 import type { Tool, WebhookLog } from '../../../types';
 
+export const dynamic = 'force-dynamic';
+
 interface DashboardStats {
   totalTools: number;
   activeTools: number;

@@ -4,6 +4,8 @@ import { sendMessageToChat, formatPullRequestMessage } from '../../../../lib/tea
 import { executeQuery } from '../../../../lib/db';
 import type { PRNotifierConfig } from '../../../../types';
 
+export const dynamic = 'force-dynamic';
+
 // Validation schema for Azure DevOps webhook
 const AzureDevOpsWebhookSchema = z.object({
   eventType: z.string(),

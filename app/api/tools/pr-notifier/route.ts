@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { executeQuery } from '../../../../lib/db';
 import type { Tool, PRNotifierConfig } from '../../../../types';
 
+export const dynamic = 'force-dynamic';
+
 // Get PR Notifier configuration
 export async function GET() {
   try {
