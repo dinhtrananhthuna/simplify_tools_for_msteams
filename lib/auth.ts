@@ -83,7 +83,7 @@ export async function getValidAuthToken(): Promise<string | null> {
     const query = `
       SELECT access_token, refresh_token, expires_at 
       FROM auth_tokens 
-      WHERE user_id = $1 AND expires_at > NOW()
+      WHERE user_id = $1
       ORDER BY created_at DESC 
       LIMIT 1
     `;
@@ -93,10 +93,52 @@ export async function getValidAuthToken(): Promise<string | null> {
     console.log('📊 Database query result:', result ? 'Found token' : 'No token found');
     
     if (!result) {
-      console.log('❌ No valid token found in database');
+      console.log('❌ No token found in database');
       return null;
     }
 
+    const now = new Date();
+    const expiresAt = new Date(result.expires_at);
+    const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+    const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+    console.log(`⏰ Token expires at: ${expiresAt.toISOString()}`);
+    console.log(`⏰ Time until expiry: ${Math.round(timeUntilExpiry / 1000 / 60)} minutes`);
+
+    // If token is expired or expires within 5 minutes, try to refresh
+    if (timeUntilExpiry <= fiveMinutes) {
+      console.log('🔄 Token expired or expires soon, attempting refresh...');
+      
+      try {
+        console.log('🔓 Decrypting refresh token...');
+        const refreshToken = decryptToken(result.refresh_token);
+        console.log('🔓 Refresh token decrypted, length:', refreshToken?.length || 0);
+        
+        if (!refreshToken || refreshToken.length === 0) {
+          console.error('❌ Refresh token is empty after decryption');
+          return null;
+        }
+        
+        console.log('🌐 Calling refresh token API...');
+        const tokens = await refreshAccessTokenDirect(refreshToken);
+        
+        // Save new tokens
+        await saveAuthToken(
+          tokens.access_token,
+          tokens.refresh_token,
+          tokens.expires_in,
+          result.scope // Keep existing scope
+        );
+        
+        console.log('✅ Token refreshed successfully');
+        return tokens.access_token;
+      } catch (refreshError) {
+        console.error('❌ Token refresh failed:', refreshError);
+        return null;
+      }
+    }
+
+    // Token is still valid, decrypt and return
     console.log('🔓 Attempting to decrypt token...');
     try {
       const token = decryptToken(result.access_token);
@@ -110,6 +152,58 @@ export async function getValidAuthToken(): Promise<string | null> {
     console.error('❌ Database error in getValidAuthToken:', dbError);
     return null;
   }
+}
+
+// Direct refresh token function (doesn't depend on other auth functions)
+async function refreshAccessTokenDirect(refreshToken: string): Promise<{
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+}> {
+  console.log('🔧 Setting up refresh token request...');
+  
+  const TEAMS_CONFIG = {
+    clientId: process.env.TEAMS_CLIENT_ID!,
+    clientSecret: process.env.TEAMS_CLIENT_SECRET!,
+    tenantId: process.env.TEAMS_TENANT_ID!,
+  };
+
+  console.log('🔧 Config check:', {
+    hasClientId: !!TEAMS_CONFIG.clientId,
+    hasClientSecret: !!TEAMS_CONFIG.clientSecret,
+    hasTenantId: !!TEAMS_CONFIG.tenantId,
+    refreshTokenLength: refreshToken?.length || 0
+  });
+
+  const requestBody = new URLSearchParams({
+    client_id: TEAMS_CONFIG.clientId,
+    client_secret: TEAMS_CONFIG.clientSecret,
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token',
+  });
+
+  console.log('🌐 Making refresh token request to Azure AD...');
+  console.log('📝 Request body params:', Array.from(requestBody.keys()));
+
+  const response = await fetch(`https://login.microsoftonline.com/${TEAMS_CONFIG.tenantId}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: requestBody,
+  });
+
+  console.log('📡 Response status:', response.status, response.statusText);
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('❌ Refresh token API error:', error);
+    throw new Error(`Token refresh failed: ${error}`);
+  }
+
+  const result = await response.json();
+  console.log('✅ Refresh token API success, got new tokens');
+  return result;
 }
 
 export async function getRefreshToken(): Promise<string | null> {

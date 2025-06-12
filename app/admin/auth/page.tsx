@@ -10,11 +10,14 @@ interface AuthStatus {
     id: string;
   };
   error?: string;
+  expiresAt?: string;
+  scope?: string;
 }
 
 export default function AuthPage() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ isAuthenticated: false });
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [oauthMessage, setOauthMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
@@ -57,6 +60,40 @@ export default function AuthPage() {
     // Clear admin auth
     localStorage.removeItem('adminAuth');
     window.location.href = '/admin/login';
+  };
+
+  const handleForceRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch('/api/auth/teams/refresh', {
+        method: 'POST'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setOauthMessage({ 
+          type: 'success', 
+          message: data.tokenRefreshed 
+            ? 'Token refreshed successfully! 🔄' 
+            : 'Token was already valid ✅' 
+        });
+        // Refresh auth status
+        await checkAuthStatus();
+      } else {
+        setOauthMessage({ 
+          type: 'error', 
+          message: `Refresh failed: ${data.error}` 
+        });
+      }
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+      setOauthMessage({ 
+        type: 'error', 
+        message: 'Failed to refresh token' 
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   if (isLoading) {
@@ -145,13 +182,29 @@ export default function AuthPage() {
                     <p><strong>ID:</strong> {authStatus.userInfo.id}</p>
                   </div>
                 )}
+                {authStatus.expiresAt && (
+                  <div className="text-sm text-green-700 mt-2">
+                    <p><strong>Token expires:</strong> {new Date(authStatus.expiresAt).toLocaleString('vi-VN')}</p>
+                    <p className="text-xs text-gray-600">
+                      Auto-refresh sẽ kích hoạt khi token còn dưới 5 phút
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="flex space-x-2">
                 <button
                   onClick={checkAuthStatus}
                   className="btn-secondary text-sm"
+                  disabled={isLoading}
                 >
-                  🔄 Refresh
+                  🔄 Refresh Status
+                </button>
+                <button
+                  onClick={handleForceRefresh}
+                  className="btn-secondary text-sm"
+                  disabled={isRefreshing}
+                >
+                  {isRefreshing ? '⏳ Refreshing...' : '🔄 Force Refresh Token'}
                 </button>
                 <button
                   onClick={handleTeamsAuth}

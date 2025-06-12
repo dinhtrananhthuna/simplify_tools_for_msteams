@@ -102,33 +102,18 @@ export async function getGraphClient(): Promise<Client> {
     });
     
     const clientPromise = (async () => {
-      console.log('🎯 Getting valid auth token...');
-      let accessToken = await getValidAuthToken();
+      console.log('🎯 Getting valid auth token (with auto-refresh)...');
+      const accessToken = await getValidAuthToken();
       
       if (!accessToken) {
-        console.log('🔄 No valid token, attempting refresh...');
-        // Try to refresh token
-        try {
-          const tokens = await refreshAccessToken();
-          await saveAuthToken(
-            tokens.access_token,
-            tokens.refresh_token,
-            tokens.expires_in,
-            TEAMS_CONFIG.scopes.join(' ')
-          );
-          accessToken = tokens.access_token;
-          console.log('✅ Token refreshed successfully');
-        } catch (error) {
-          console.error('❌ Token refresh failed:', error);
-          throw new Error('Authentication required - please re-authorize with Teams');
-        }
-      } else {
-        console.log('✅ Valid token found');
+        console.error('❌ No valid token available after refresh attempt');
+        throw new Error('Authentication required - please re-authorize with Teams');
       }
 
+      console.log('✅ Valid token obtained');
       console.log('🔧 Initializing Graph client...');
       return Client.init({
-        authProvider: async () => accessToken!,
+        authProvider: async () => accessToken,
       });
     })();
     
