@@ -15,8 +15,24 @@ interface AuthStatus {
 export default function AuthPage() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ isAuthenticated: false });
   const [isLoading, setIsLoading] = useState(true);
+  const [oauthMessage, setOauthMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
+    // Check for OAuth callback parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
+    
+    if (success === 'true') {
+      setOauthMessage({ type: 'success', message: 'Teams authentication successful! 🎉' });
+      // Clear URL params
+      window.history.replaceState({}, document.title, '/admin/auth');
+    } else if (error) {
+      setOauthMessage({ type: 'error', message: `Authentication failed: ${decodeURIComponent(error)}` });
+      // Clear URL params
+      window.history.replaceState({}, document.title, '/admin/auth');
+    }
+    
     checkAuthStatus();
   }, []);
 
@@ -62,6 +78,25 @@ export default function AuthPage() {
         <p className="text-gray-600">
           Quản lý authentication và permissions cho MS Teams integration
         </p>
+        
+        {/* OAuth Callback Messages */}
+        {oauthMessage && (
+          <div className={`mt-4 p-4 rounded-lg ${
+            oauthMessage.type === 'success' 
+              ? 'bg-green-50 border border-green-200 text-green-800'
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span>{oauthMessage.message}</span>
+              <button 
+                onClick={() => setOauthMessage(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Admin Authentication */}

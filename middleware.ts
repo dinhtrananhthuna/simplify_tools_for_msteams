@@ -3,10 +3,20 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(request: NextRequest) {
   console.log('🔍 Middleware called for:', request.nextUrl.pathname);
 
-  // Allow login page and login API to be accessed without auth
+  // Allow login page, login API, and Teams OAuth routes to be accessed without auth
   if (request.nextUrl.pathname === '/admin/login' || 
-      request.nextUrl.pathname === '/api/auth/login') {
-    console.log('✅ Allowing login access');
+      request.nextUrl.pathname === '/api/auth/login' ||
+      request.nextUrl.pathname === '/api/auth/teams' ||
+      request.nextUrl.pathname === '/api/auth/teams/callback' ||
+      request.nextUrl.pathname === '/api/auth/teams/status') {
+    console.log('✅ Allowing auth access');
+    return NextResponse.next();
+  }
+
+  // Special handling for /admin/auth with OAuth callback parameters
+  if (request.nextUrl.pathname === '/admin/auth' && 
+      (request.nextUrl.searchParams.has('success') || request.nextUrl.searchParams.has('error'))) {
+    console.log('✅ Allowing Teams OAuth callback result page');
     return NextResponse.next();
   }
 
