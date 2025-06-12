@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getTeamsAuthUrl } from '@/lib/teams';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const authUrl = getTeamsAuthUrl();

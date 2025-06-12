@@ -1,5 +1,7 @@
 import { getUserChats } from '../../../../lib/teams';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const chats = await getUserChats();

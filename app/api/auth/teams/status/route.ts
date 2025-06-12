@@ -1,5 +1,7 @@
 import { checkTeamsAuthStatus } from '../../../../../lib/teams';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const authStatus = await checkTeamsAuthStatus();
