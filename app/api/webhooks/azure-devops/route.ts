@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { sendMessageToChat, formatPullRequestMessage } from '../../../../lib/teams';
+import { sendSimpleMessage } from '../../../../lib/teams-simple';
+import { formatPullRequestMessage } from '../../../../lib/teams';
 import { executeQuery } from '../../../../lib/db';
 import type { PRNotifierConfig } from '../../../../types';
 
@@ -179,10 +180,9 @@ export async function POST(request: NextRequest) {
         setTimeout(() => reject(new Error('Teams message send timeout')), 20000); // 20 second timeout
       });
       
-      const sendPromise = sendMessageToChat(
+      const sendPromise = sendSimpleMessage(
         config.targetChatId,
-        message,
-        'html'
+        message
       );
       
       const messageId = await Promise.race([sendPromise, timeoutPromise]) as string;

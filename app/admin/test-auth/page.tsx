@@ -1,152 +1,93 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-
-interface DebugInfo {
-  debug?: {
-    allTokens: any;
-    adminToken: any;
-    hasValidToken: boolean;
-    authStatus: any;
-    timestamp: string;
-  };
-  error?: string;
-}
-
-interface AuthStatus {
-  success?: boolean;
-  isAuthenticated: boolean;
-  userInfo?: any;
-  error?: string;
-}
+import { useState } from 'react';
 
 export default function TestAuthPage() {
-  const [debugInfo, setDebugInfo] = useState<DebugInfo>({});
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ isAuthenticated: false });
   const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
 
-  const checkDebugAuth = async () => {
+  const testTeamsAuth = async () => {
     setIsLoading(true);
-    try {
-      const response = await fetch('/api/debug/auth');
-      const data = await response.json();
-      setDebugInfo(data);
-    } catch (error) {
-      console.error('Debug auth check failed:', error);
-      setDebugInfo({ error: 'Failed to check debug auth' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const checkAuthStatus = async () => {
-    setIsLoading(true);
+    setResult(null);
+    
     try {
       const response = await fetch('/api/auth/teams/status');
       const data = await response.json();
-      setAuthStatus(data);
+      setResult(data);
     } catch (error) {
-      console.error('Auth status check failed:', error);
-      setAuthStatus({ isAuthenticated: false, error: 'Failed to check auth status' });
+      setResult({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    checkDebugAuth();
-    checkAuthStatus();
-  }, []);
+  const initiateTeamsAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/teams');
+      const data = await response.json();
+      
+      if (data.authUrl) {
+        window.open(data.authUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Failed to initiate auth:', error);
+    }
+  };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">🔧 Auth Debug</h1>
-        <div className="space-x-3">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">🔍 Test Authentication</h1>
+        <p className="text-gray-600 mt-2">
+          Kiểm tra trạng thái xác thực MS Teams
+        </p>
+      </div>
+
+      {/* Test Controls */}
+      <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">🧪 Authentication Tests</h2>
+        <div className="space-y-4">
           <button
-            onClick={checkDebugAuth}
+            onClick={testTeamsAuth}
             disabled={isLoading}
-            className="btn-secondary"
+            className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
           >
-            🔍 Check Debug
+            {isLoading ? '🔄 Checking...' : '🔍 Check Teams Auth Status'}
           </button>
+
           <button
-            onClick={checkAuthStatus}
-            disabled={isLoading}
-            className="btn-primary"
+            onClick={initiateTeamsAuth}
+            className="w-full bg-purple-600 text-white py-3 px-4 rounded-md hover:bg-purple-700 transition-colors"
           >
-            📊 Check Status
+            🚀 Start Teams Authentication
           </button>
         </div>
       </div>
 
-      {/* Auth Status */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          📱 Auth Status (from /api/auth/teams/status)
-        </h2>
-        
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-            {JSON.stringify(authStatus, null, 2)}
-          </pre>
+      {/* Results */}
+      {result && (
+        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Test Results</h2>
+          <div className={`p-4 rounded-lg border ${
+            result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+          }`}>
+            <pre className="text-sm overflow-auto whitespace-pre-wrap">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Debug Info */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          🔧 Debug Info (from /api/debug/auth)
-        </h2>
-        
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-            {JSON.stringify(debugInfo, null, 2)}
-          </pre>
-        </div>
-      </div>
-
-      {/* Quick Status */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          ⚡ Quick Summary
-        </h2>
-        
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">Has Valid Token (Debug):</span>
-            <span className={`font-medium ${debugInfo.debug?.hasValidToken ? 'text-green-600' : 'text-red-600'}`}>
-              {debugInfo.debug?.hasValidToken ? '✅ YES' : '❌ NO'}
-            </span>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">Is Authenticated (Status):</span>
-            <span className={`font-medium ${authStatus.isAuthenticated ? 'text-green-600' : 'text-red-600'}`}>
-              {authStatus.isAuthenticated ? '✅ YES' : '❌ NO'}
-            </span>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">Token Expires At:</span>
-            <span className="font-medium text-gray-900">
-              {debugInfo.debug?.authStatus?.expiresAt 
-                ? new Date(debugInfo.debug.authStatus.expiresAt).toLocaleString() 
-                : 'N/A'}
-            </span>
-          </div>
-          
-          {(authStatus.error || debugInfo.error) && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded">
-              <p className="text-red-800 font-medium">Errors:</p>
-              {authStatus.error && (
-                <p className="text-red-700 text-sm">Status: {authStatus.error}</p>
-              )}
-              {debugInfo.error && (
-                <p className="text-red-700 text-sm">Debug: {debugInfo.error}</p>
-              )}
-            </div>
-          )}
+      {/* Instructions */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-blue-900 mb-4">📋 Instructions</h2>
+        <div className="text-blue-800 space-y-2 text-sm">
+          <p><strong>1. Check Teams Auth Status:</strong> Kiểm tra xem đã có token Teams hợp lệ chưa</p>
+          <p><strong>2. Start Teams Authentication:</strong> Bắt đầu quá trình OAuth với Microsoft Teams</p>
+          <p><strong>3. Test API:</strong> Sau khi authentication thành công, test các API endpoints</p>
         </div>
       </div>
     </div>

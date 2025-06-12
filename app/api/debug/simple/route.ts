@@ -1,15 +1,14 @@
 import { getValidAuthToken } from '../../../../lib/auth';
-import { getGraphClient } from '../../../../lib/teams';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    console.log('🔍 Debug: Testing Teams authentication...');
+    console.log('🔍 Simple Debug: Testing with raw fetch...');
     
-    // Timeout ngắn hơn cho debug
+    // Timeout ngắn
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Debug timeout')), 10000); // 10 giây
+      setTimeout(() => reject(new Error('Simple debug timeout')), 8000); // 8 giây
     });
     
     const debugPromise = (async () => {
@@ -24,24 +23,32 @@ export async function GET() {
         };
       }
       
-      console.log('2. Token found, testing Graph API...');
+      console.log('2. Testing simple Graph API call with fetch...');
       
-      // Tạo Graph client
-      const client = await getGraphClient();
+      // Sử dụng fetch thuần thay vì Graph SDK
+      const response = await fetch('https://graph.microsoft.com/v1.0/me', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokenData}`,
+          'Content-Type': 'application/json',
+        },
+      });
       
-      console.log('3. Making simple Graph API call...');
+      if (!response.ok) {
+        throw new Error(`Graph API error: ${response.status} ${response.statusText}`);
+      }
       
-      // Test với API call đơn giản nhất
-      const me = await client.api('/me').get();
+      const me = await response.json();
       
       return {
         step: 'complete',
         success: true,
         userInfo: {
           displayName: me.displayName,
-          mail: me.mail,
+          mail: me.mail || me.userPrincipalName,
           id: me.id
-        }
+        },
+        method: 'raw_fetch'
       };
     })();
     
@@ -53,12 +60,13 @@ export async function GET() {
     });
     
   } catch (error) {
-    console.error('❌ Debug failed:', error);
+    console.error('❌ Simple Debug failed:', error);
     
     return Response.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      step: 'failed'
+      step: 'failed',
+      method: 'raw_fetch'
     }, { status: 500 });
   }
 } 

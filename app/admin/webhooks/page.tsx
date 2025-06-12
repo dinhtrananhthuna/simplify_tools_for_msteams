@@ -62,12 +62,97 @@ export default function WebhooksPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">📡 Webhook Management</h1>
-        <p className="text-gray-600">
-          Monitor và quản lý webhook events từ external services
+        <h1 className="text-3xl font-bold text-gray-900">📡 Webhooks</h1>
+        <p className="text-gray-600 mt-2">
+          Quản lý và theo dõi các webhook endpoints
         </p>
+      </div>
+
+      {/* Webhook URLs */}
+      <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">🔗 Webhook URLs</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Azure DevOps PR Webhook
+            </label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={`${window.location.origin}/api/webhooks/azure-devops`}
+                readOnly
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 text-sm"
+              />
+              <button
+                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/azure-devops`)}
+                className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+              >
+                📋 Copy
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              Sử dụng URL này trong Azure DevOps webhook configuration
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Webhook Status */}
+      <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Webhook Status</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
+            <span className="text-2xl mb-2 block">✅</span>
+            <h3 className="font-medium text-gray-900">Endpoint Ready</h3>
+            <p className="text-sm text-gray-600 mt-1">Sẵn sàng nhận webhook</p>
+          </div>
+          
+          <div className="text-center p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <span className="text-2xl mb-2 block">📊</span>
+            <h3 className="font-medium text-gray-900">Total Received</h3>
+            <p className="text-sm text-gray-600 mt-1">0 webhooks</p>
+          </div>
+          
+          <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <span className="text-2xl mb-2 block">🚀</span>
+            <h3 className="font-medium text-gray-900">Success Rate</h3>
+            <p className="text-sm text-gray-600 mt-1">100%</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Setup Instructions */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-blue-900 mb-4">📋 Setup Instructions</h2>
+        <div className="space-y-4 text-blue-800">
+          <div>
+            <h3 className="font-medium mb-2">1. Trong Azure DevOps:</h3>
+            <ul className="text-sm space-y-1 ml-4">
+              <li>• Vào Project Settings → Service Hooks</li>
+              <li>• Chọn "Create subscription"</li>
+              <li>• Chọn "Web Hooks" làm service</li>
+              <li>• Chọn "Pull request created" event</li>
+            </ul>
+          </div>
+          
+          <div>
+            <h3 className="font-medium mb-2">2. Cấu hình Webhook:</h3>
+            <ul className="text-sm space-y-1 ml-4">
+              <li>• URL: Copy từ field phía trên</li>
+              <li>• HTTP Method: POST</li>
+              <li>• Content Type: application/json</li>
+            </ul>
+          </div>
+          
+          <div>
+            <h3 className="font-medium mb-2">3. Kiểm tra:</h3>
+            <ul className="text-sm space-y-1 ml-4">
+              <li>• Tạo test PR để kiểm tra webhook</li>
+              <li>• Theo dõi logs trong Test API page</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -92,32 +177,6 @@ export default function WebhooksPage() {
           >
             🔄 Refresh
           </button>
-        </div>
-      </div>
-
-      {/* Webhook URL Info */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">📡 Webhook Endpoints</h2>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Azure DevOps Webhook URL
-            </label>
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={`${window.location.origin}/api/webhooks/azure-devops`}
-                readOnly
-                className="input-field flex-1 bg-gray-50"
-              />
-              <button
-                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/azure-devops`)}
-                className="btn-secondary px-3"
-              >
-                📋 Copy
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 

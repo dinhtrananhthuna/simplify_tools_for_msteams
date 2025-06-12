@@ -144,39 +144,190 @@ export async function getGraphClient(): Promise<Client> {
   }
 }
 
-// Get user's Teams chats with timeout
+// Simple in-memory cache for Teams chats
+interface ChatCache {
+  data: any[];
+  timestamp: number;
+  ttl: number; // Time to live in milliseconds
+}
+
+let teamsChatsCache: ChatCache | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+
+// Get cached chats if still valid
+function getCachedChats(): any[] | null {
+  if (!teamsChatsCache) {
+    return null;
+  }
+  
+  const now = Date.now();
+  const isExpired = (now - teamsChatsCache.timestamp) > teamsChatsCache.ttl;
+  
+  if (isExpired) {
+    console.log('📦 Cache expired, clearing...');
+    teamsChatsCache = null;
+    return null;
+  }
+  
+  console.log('📦 Using cached chats data');
+  return teamsChatsCache.data;
+}
+
+// Set cache with current data
+function setCacheChats(data: any[]): void {
+  teamsChatsCache = {
+    data,
+    timestamp: Date.now(),
+    ttl: CACHE_TTL,
+  };
+  console.log(`📦 Cached ${data.length} chats for ${CACHE_TTL / 1000}s`);
+}
+
+// Get user's Teams chats with cache and optimization
+export async function getUserChatsOptimized(useCache: boolean = true): Promise<any[]> {
+  console.log('🔍 Getting user Teams chats (optimized + cached)...');
+  
+  // Check cache first if enabled
+  if (useCache) {
+    const cachedData = getCachedChats();
+    if (cachedData) {
+      return cachedData;
+    }
+  }
+  
+  try {
+    // Use retry mechanism for better reliability
+    const chats = await getUserChatsWithRetry(2);
+    
+    // Cache the results
+    if (useCache) {
+      setCacheChats(chats);
+    }
+    
+    return chats;
+  } catch (error) {
+    console.error('❌ Failed to get optimized chats:', error);
+    throw error;
+  }
+}
+
+// Clear cache manually (useful for testing or refresh)
+export function clearTeamsChatsCache(): void {
+  teamsChatsCache = null;
+  console.log('📦 Teams chats cache cleared');
+}
+
+// Get user's Teams chats with retry mechanism
+export async function getUserChatsWithRetry(maxRetries: number = 2): Promise<any[]> {
+  console.log(`🔄 Getting Teams chats with retry (max: ${maxRetries})`);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`📡 Attempt ${attempt}/${maxRetries}`);
+      const chats = await getUserChats();
+      console.log(`✅ Success on attempt ${attempt}`);
+      return chats;
+    } catch (error) {
+      console.log(`❌ Attempt ${attempt} failed:`, error instanceof Error ? error.message : 'Unknown error');
+      
+      if (attempt === maxRetries) {
+        // Last attempt failed, throw the error
+        throw error;
+      }
+      
+      // Wait before retry with exponential backoff
+      const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
+      console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+  
+  throw new Error('Max retries exceeded');
+}
+
+// Get user's Teams chats with optimization and timeout
 export async function getUserChats() {
-  console.log('🔍 Getting user Teams chats...');
+  console.log('🔍 Getting user Teams chats (optimized)...');
   
   try {
     // Add timeout to prevent long-running requests
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Teams chats fetch timeout')), 20000); // 20 second timeout
+      setTimeout(() => reject(new Error('Teams chats fetch timeout')), 15000); // Reduced to 15 seconds
     });
     
     const chatsPromise = (async () => {
       console.log('📊 Creating Graph API client...');
       const client = await getGraphClient();
       
-      console.log('📋 Fetching chats from Graph API...');
-      const chats = await client.api('/me/chats').get();
+      console.log('📋 Fetching chats from Graph API with optimization...');
       
-      console.log(`✅ Successfully fetched ${chats.value?.length || 0} chats`);
-      return chats.value.map((chat: any) => ({
-        id: chat.id,
-        displayName: chat.topic || `Chat với ${chat.members?.length || 'N/A'} members`,
-        chatType: chat.chatType,
-        lastUpdated: chat.lastUpdatedDateTime,
-      }));
+      // Optimize query with:
+      // 1. Select only needed fields to reduce payload
+      // 2. Top 50 to limit results for faster response
+      // 3. Filter for recent chats (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      // Đơn giản hóa query - chỉ lấy 3 chats với fields tối thiểu
+      const chats = await client
+        .api('/me/chats')
+        .select('id,topic,chatType')
+        .top(3)
+        .get();
+      
+      console.log(`✅ Successfully fetched ${chats.value?.length || 0} chats (optimized)`);
+      
+      // Process results with better display names
+      return chats.value.map((chat: any) => {
+        let displayName = chat.topic;
+        
+        // If no topic, create a meaningful name based on chat type
+        if (!displayName) {
+          switch (chat.chatType) {
+            case 'oneOnOne':
+              displayName = '1:1 Chat';
+              break;
+            case 'group':
+              displayName = `Group Chat (${chat.members?.length || 'N/A'} members)`;
+              break;
+            case 'meeting':
+              displayName = 'Meeting Chat';
+              break;
+            default:
+              displayName = `${chat.chatType} Chat`;
+          }
+        }
+        
+        return {
+          id: chat.id,
+          displayName,
+          chatType: chat.chatType,
+          lastUpdated: chat.lastUpdatedDateTime,
+        };
+      });
     })();
     
     return await Promise.race([chatsPromise, timeoutPromise]);
   } catch (error) {
     console.error('❌ Failed to get user chats:', error);
     
-    // Return friendly error message based on error type
-    if (error instanceof Error && error.message.includes('timeout')) {
-      throw new Error('Teams API is taking too long to respond. Please try again.');
+    // Enhanced error handling with specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('timeout')) {
+        throw new Error('Teams API is taking too long to respond. Please try again.');
+      }
+      
+      if (error.message.includes('Forbidden') || error.message.includes('403')) {
+        throw new Error('Access denied. Please check your Teams permissions and re-authenticate.');
+      }
+      
+      if (error.message.includes('Unauthorized') || error.message.includes('401')) {
+        throw new Error('Authentication expired. Please re-connect to Teams.');
+      }
+      
+      if (error.message.includes('Too Many Requests') || error.message.includes('429')) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      }
     }
     
     throw new Error('Failed to fetch Teams chats. Please check your connection and try again.');

@@ -16,11 +16,14 @@ export default function TestAPIPage() {
 
   const endpoints = [
     { name: 'Auth Status', path: '/api/auth/teams/status' },
-    { name: 'Debug Auth', path: '/api/debug/auth' },
-    { name: 'Teams Chats', path: '/api/teams/chats' },
+    { name: 'Debug Simple (Fetch) ⭐', path: '/api/debug/simple' },
+    { name: 'Teams Chats (Simple) ⭐', path: '/api/teams/chats?limit=3' },
+    { name: 'Teams Chats (Alternative)', path: '/api/teams/chats-simple?limit=2' },
+    { name: 'Debug Auth (SDK - Slow)', path: '/api/debug/auth' },
+    { name: 'Clear Cache (No-op)', path: '/api/teams/chats', method: 'DELETE' },
   ];
 
-  const runSingleTest = async (endpoint: { name: string; path: string }): Promise<TestResult> => {
+  const runSingleTest = async (endpoint: { name: string; path: string; method?: string }): Promise<TestResult> => {
     const startTime = Date.now();
     
     try {
@@ -28,6 +31,7 @@ export default function TestAPIPage() {
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
       const response = await fetch(endpoint.path, {
+        method: endpoint.method || 'GET',
         signal: controller.signal,
       });
       

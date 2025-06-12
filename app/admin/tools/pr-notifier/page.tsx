@@ -7,7 +7,12 @@ interface TeamsChat {
   id: string;
   displayName: string;
   chatType: string;
-  lastUpdated: string;
+  memberCount: number;
+  members: Array<{
+    id: string;
+    displayName: string;
+    email?: string;
+  }>;
 }
 
 interface PRNotifierConfig {
@@ -79,22 +84,32 @@ export default function PRNotifierPage() {
     }
   };
 
-  const loadTeamsChats = async () => {
+  const loadTeamsChats = async (forceRefresh: boolean = false) => {
     setChatsLoading(true);
     setChatsError(null);
     
     try {
-      const chatsResponse = await fetch('/api/teams/chats');
+      const url = '/api/teams/chats?limit=10'; // Using simple fetch - no cache needed
+      const chatsResponse = await fetch(url);
       const chatsData = await chatsResponse.json();
       
       if (chatsResponse.ok && chatsData.success) {
         setTeamsChats(chatsData.chats || []);
+        
+        // Show cache status in console for debugging
+        console.log(`📊 Chats loaded: ${chatsData.count} items, cached: ${chatsData.cached}`);
       } else {
         setChatsError(chatsData.error || 'Failed to load Teams chats');
       }
     } catch (error) {
       console.error('Failed to load Teams chats:', error);
-      setChatsError('Network error while loading chats. Please try again.');
+      
+      // Better error messages based on error type
+      if (error instanceof Error && error.message.includes('timeout')) {
+        setChatsError('Request timed out. Teams API is slow, please try again or use force refresh.');
+      } else {
+        setChatsError('Network error while loading chats. Please try again.');
+      }
     } finally {
       setChatsLoading(false);
     }
@@ -296,27 +311,87 @@ export default function PRNotifierPage() {
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
                       ❌ {chatsError}
                     </div>
-                    <button
-                      onClick={loadTeamsChats}
-                      className="btn-secondary text-sm"
-                    >
-                      🔄 Retry Loading Chats
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => loadTeamsChats(false)}
+                        className="btn-secondary text-sm"
+                      >
+                        🔄 Retry (Cached)
+                      </button>
+                      <button
+                        onClick={() => loadTeamsChats(true)}
+                        className="btn-primary text-sm"
+                      >
+                        🚀 Force Refresh
+                      </button>
+                    </div>
                   </div>
                 ) : teamsChats.length > 0 ? (
-                <select
-                  value={config.targetChatId}
-                  onChange={(e) => setConfig(prev => ({ ...prev, targetChatId: e.target.value }))}
-                  className="input-field"
-                >
-                  <option value="">Select a chat...</option>
-                  {teamsChats.map((chat) => (
-                    <option key={chat.id} value={chat.id}>
-                      {chat.displayName} ({chat.chatType})
-                    </option>
-                  ))}
-                </select>
-              ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">
+                        Found {teamsChats.length} chats
+                      </span>
+                      <button
+                        onClick={() => loadTeamsChats(true)}
+                        className="btn-secondary text-xs"
+                        title="Force refresh to get latest chats"
+                      >
+                        🔄 Refresh
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      <select
+                        value={config.targetChatId}
+                        onChange={(e) => setConfig(prev => ({ ...prev, targetChatId: e.target.value }))}
+                        className="input-field"
+                      >
+                        <option value="">Select a chat...</option>
+                        {teamsChats.map((chat) => (
+                          <option key={chat.id} value={chat.id}>
+                            {chat.displayName} ({chat.chatType})
+                          </option>
+                        ))}
+                      </select>
+                      
+                      {/* Chat Details */}
+                      {config.targetChatId && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          {(() => {
+                            const selectedChat = teamsChats.find(chat => chat.id === config.targetChatId);
+                            if (!selectedChat) return null;
+                            
+                            return (
+                              <div>
+                                <h4 className="font-medium text-blue-900 mb-2">
+                                  📋 Selected Chat Details
+                                </h4>
+                                <div className="text-sm text-blue-800 space-y-1">
+                                  <div><strong>Name:</strong> {selectedChat.displayName}</div>
+                                  <div><strong>Type:</strong> {selectedChat.chatType}</div>
+                                  <div><strong>Members:</strong> {selectedChat.memberCount}</div>
+                                  {selectedChat.members.length > 0 && (
+                                    <div>
+                                      <strong>Participants:</strong>
+                                      <ul className="ml-4 mt-1">
+                                        {selectedChat.members.map((member, index) => (
+                                          <li key={index} className="text-xs">
+                                            • {member.displayName}
+                                            {member.email && ` (${member.email})`}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
                 <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
                   No Teams chats found. Make sure you have access to Teams chats.
                 </div>

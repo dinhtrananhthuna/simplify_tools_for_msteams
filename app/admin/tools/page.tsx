@@ -5,226 +5,96 @@ export default function ToolsPage() {
     {
       id: 'pr-notifier',
       name: 'Pull Request Notifier',
-      description: 'Tự động thông báo team về pull requests mới từ Azure DevOps',
+      description: 'Tự động gửi thông báo PR từ Azure DevOps đến Teams chat',
       icon: '🔔',
-      status: 'active' as const,
-      category: 'automation',
-      lastActivity: '2 phút trước',
-      totalEvents: 156,
-      successRate: 98.5,
-      configPath: '/admin/tools/pr-notifier',
+      status: 'active',
+      href: '/admin/tools/pr-notifier'
     },
     {
-      id: 'meeting-scheduler',
-      name: 'Meeting Scheduler',
-      description: 'Tự động tạo và quản lý meetings từ calendar events',
-      icon: '📅',
-      status: 'setup_needed' as const,
-      category: 'productivity',
-      lastActivity: 'Chưa có',
-      totalEvents: 0,
-      successRate: 0,
-      configPath: '/admin/tools/meeting-scheduler',
-    },
-    {
-      id: 'status-sync',
-      name: 'Status Sync',
-      description: 'Đồng bộ status giữa Teams, Slack và các platforms khác',
-      icon: '🔄',
-      status: 'setup_needed' as const,
-      category: 'integration',
-      lastActivity: 'Chưa có',
-      totalEvents: 0,
-      successRate: 0,
-      configPath: '/admin/tools/status-sync',
-    },
+      id: 'future-tool',
+      name: 'Future Tool',
+      description: 'Placeholder cho các tools sẽ được thêm sau',
+      icon: '🚀',
+      status: 'planned',
+      href: '#'
+    }
   ];
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'status-badge status-active';
-      case 'inactive':
-        return 'status-badge status-inactive';
-      case 'setup_needed':
-        return 'status-badge status-setup-needed';
-      case 'error':
-        return 'status-badge status-error';
-      default:
-        return 'status-badge status-inactive';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'Đang hoạt động';
-      case 'inactive':
-        return 'Tạm dừng';
-      case 'setup_needed':
-        return 'Cần cấu hình';
-      case 'error':
-        return 'Lỗi';
-      default:
-        return 'Không xác định';
-    }
-  };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tools Management</h1>
-          <p className="text-gray-600">Quản lý và cấu hình các tools tự động hóa</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <button className="btn-secondary">
-            📊 View Analytics
-          </button>
-          <button className="btn-primary">
-            ➕ Add New Tool
-          </button>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-teams-purple rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm">🛠️</span>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total Tools</p>
-              <p className="text-2xl font-semibold text-gray-900">{tools.length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-teams-green rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm">✅</span>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Active Tools</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {tools.filter(t => t.status === 'active').length}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-teams-blue rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm">📊</span>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total Events</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {tools.reduce((sum, tool) => sum + tool.totalEvents, 0)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center">
-            <div className="w-8 h-8 bg-teams-orange rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm">📈</span>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Avg Success Rate</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {Math.round(tools.reduce((sum, tool) => sum + tool.successRate, 0) / tools.length)}%
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">🔧 Tools</h1>
+        <p className="text-gray-600 mt-2">
+          Quản lý các công cụ tích hợp với MS Teams
+        </p>
       </div>
 
       {/* Tools Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {tools.map((tool) => (
-          <div
-            key={tool.id}
-            className={`tool-card ${tool.status === 'active' ? 'tool-card-active' : ''} ${
-              tool.status === 'setup_needed' ? 'tool-card-inactive' : ''
-            }`}
-          >
-            <div className="flex items-center justify-between mb-4">
+          <div key={tool.id} className="bg-white p-6 rounded-lg shadow border border-gray-200">
+            <div className="flex items-start justify-between">
               <div className="flex items-center">
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white text-2xl ${
-                  tool.status === 'active' ? 'bg-teams-purple' : 'bg-gray-400'
-                }`}>
-                  {tool.icon}
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <span className="text-2xl">{tool.icon}</span>
                 </div>
                 <div className="ml-4">
-                  <h3 className="text-lg font-semibold text-gray-900">{tool.name}</h3>
-                  <span className={getStatusBadge(tool.status)}>
-                    {getStatusText(tool.status)}
-                  </span>
+                  <h3 className="text-lg font-medium text-gray-900">{tool.name}</h3>
+                  <div className="flex items-center mt-1">
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${
+                        tool.status === 'active'
+                          ? 'bg-green-100 text-green-800'
+                          : tool.status === 'planned'
+                          ? 'bg-gray-100 text-gray-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {tool.status === 'active' ? 'Hoạt động' : 
+                       tool.status === 'planned' ? 'Dự định' : 'Dừng'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <p className="text-gray-600 mb-4 text-sm">{tool.description}</p>
+            <p className="text-gray-600 mt-4 text-sm">{tool.description}</p>
 
-            <div className="space-y-2 mb-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Hoạt động gần nhất:</span>
-                <span className="text-gray-900">{tool.lastActivity}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Tổng events:</span>
-                <span className="text-gray-900">{tool.totalEvents.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Success rate:</span>
-                <span className="text-gray-900">{tool.successRate}%</span>
-              </div>
-            </div>
-
-            <div className="flex space-x-2">
-              <Link
-                href={tool.configPath}
-                className="btn-primary flex-1 text-center text-sm"
-              >
-                🔧 Configure
-              </Link>
-              <button className="btn-secondary px-3">
-                📊
-              </button>
-              <button className="btn-secondary px-3">
-                📝
-              </button>
+            <div className="mt-6 flex space-x-3">
+              {tool.status === 'active' ? (
+                <Link
+                  href={tool.href}
+                  className="flex-1 bg-blue-600 text-white text-center py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Cấu hình
+                </Link>
+              ) : (
+                <button
+                  disabled
+                  className="flex-1 bg-gray-300 text-gray-500 text-center py-2 px-4 rounded-md cursor-not-allowed"
+                >
+                  Chưa khả dụng
+                </button>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <button className="btn-secondary text-sm">
-            🔄 Refresh All
-          </button>
-          <button className="btn-secondary text-sm">
-            📊 View Analytics
-          </button>
-          <button className="btn-secondary text-sm">
-            📝 Export Logs
-          </button>
-          <button className="btn-secondary text-sm">
-            🔐 Check Auth
-          </button>
-          <button className="btn-secondary text-sm">
-            ⚙️ Global Settings
-          </button>
-        </div>
+      {/* Add New Tool */}
+      <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+        <span className="text-4xl mb-4 block">➕</span>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Thêm Tool Mới</h3>
+        <p className="text-gray-600 mb-4">
+          Bạn có thể mở rộng hệ thống bằng cách thêm các công cụ mới
+        </p>
+        <button
+          disabled
+          className="bg-gray-300 text-gray-500 py-2 px-4 rounded-md cursor-not-allowed"
+        >
+          Tính năng sắp ra mắt
+        </button>
       </div>
     </div>
   );
