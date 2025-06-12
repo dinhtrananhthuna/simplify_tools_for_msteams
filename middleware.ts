@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(request: NextRequest) {
   console.log('🔍 Middleware called for:', request.nextUrl.pathname);
 
-  // Allow login page to be accessed without auth
-  if (request.nextUrl.pathname === '/admin/login') {
-    console.log('✅ Allowing login page');
+  // Allow login page and login API to be accessed without auth
+  if (request.nextUrl.pathname === '/admin/login' || 
+      request.nextUrl.pathname === '/api/auth/login') {
+    console.log('✅ Allowing login access');
     return NextResponse.next();
   }
 
@@ -26,13 +27,17 @@ export function middleware(request: NextRequest) {
       const credentials = Buffer.from(authHeader.slice(6), 'base64').toString();
       const [username, password] = credentials.split(':');
       
-      const validUsername = process.env.ADMIN_USER || 'admin';
-      const validPassword = process.env.ADMIN_PASS || 'password';
+      const validUsername = process.env.ADMIN_USERNAME || 'admin';
+      const validPassword = process.env.ADMIN_PASSWORD || 'password';
       
       console.log('🔐 Checking credentials for user:', username);
+      console.log('🔧 Expected username:', validUsername);
+      console.log('🔧 Expected password:', validPassword ? '***' : 'NOT SET');
       
       if (username !== validUsername || password !== validPassword) {
         console.log('❌ Invalid credentials, redirecting to login');
+        console.log('❌ Provided username:', username);
+        console.log('❌ Provided password:', password ? '***' : 'EMPTY');
         const loginUrl = new URL('/admin/login', request.url);
         return NextResponse.redirect(loginUrl);
       }

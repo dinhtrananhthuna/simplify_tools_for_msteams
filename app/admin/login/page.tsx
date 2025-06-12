@@ -15,29 +15,36 @@ export default function AdminLoginPage() {
     setError('');
 
     try {
-      // Set Basic Auth header and redirect to dashboard
-      const authString = btoa(`${credentials.username}:${credentials.password}`);
-      
-      // Store credentials for subsequent requests
-      localStorage.setItem('adminAuth', authString);
-      
-      // Test the credentials by making a request to dashboard
-      const response = await fetch('/admin/dashboard', {
+      // First verify credentials with API
+      const loginResponse = await fetch('/api/auth/login', {
+        method: 'POST',
         headers: {
-          'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          username: credentials.username,
+          password: credentials.password,
+        }),
       });
 
-      if (response.ok) {
+      const loginResult = await loginResponse.json();
+
+      if (loginResult.success) {
+        // Store credentials for subsequent requests
+        const authString = btoa(`${credentials.username}:${credentials.password}`);
+        localStorage.setItem('adminAuth', authString);
+        
+        console.log('✅ Login successful, redirecting to dashboard');
+        
         // Redirect to dashboard
         window.location.href = '/admin/dashboard';
       } else {
-        setError('Invalid credentials');
-        localStorage.removeItem('adminAuth');
+        setError(loginResult.error || 'Invalid credentials');
+        console.log('❌ Login failed:', loginResult.error);
       }
     } catch (error) {
+      console.error('❌ Login error:', error);
       setError('Login failed. Please try again.');
-      localStorage.removeItem('adminAuth');
     } finally {
       setIsLoading(false);
     }
