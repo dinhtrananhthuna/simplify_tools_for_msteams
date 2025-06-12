@@ -11,7 +11,9 @@ const TEAMS_CONFIG = {
     'https://graph.microsoft.com/TeamMember.Read.All',
     'https://graph.microsoft.com/User.Read',
   ],
-  redirectUri: `${process.env.VERCEL_URL || 'http://localhost:3000'}/api/auth/teams/callback`,
+  redirectUri: process.env.NEXTAUTH_URL 
+    ? `${process.env.NEXTAUTH_URL}/api/auth/teams/callback`
+    : `http://localhost:3000/api/auth/teams/callback`,
 };
 
 // Get OAuth authorization URL
