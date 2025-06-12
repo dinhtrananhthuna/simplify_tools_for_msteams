@@ -91,69 +91,138 @@ export async function refreshAccessToken(): Promise<{
   return response.json();
 }
 
-// Get authenticated Graph API client
+// Get authenticated Graph API client with timeout
 export async function getGraphClient(): Promise<Client> {
-  let accessToken = await getValidAuthToken();
-  
-  if (!accessToken) {
-    // Try to refresh token
-    try {
-      const tokens = await refreshAccessToken();
-      await saveAuthToken(
-        tokens.access_token,
-        tokens.refresh_token,
-        tokens.expires_in,
-        TEAMS_CONFIG.scopes.join(' ')
-      );
-      accessToken = tokens.access_token;
-    } catch (error) {
-      throw new Error('Authentication required - please re-authorize with Teams');
-    }
-  }
-
-  return Client.init({
-    authProvider: async () => accessToken!,
-  });
-}
-
-// Get user's Teams chats
-export async function getUserChats() {
-  const client = await getGraphClient();
+  console.log('🔍 Creating Graph API client...');
   
   try {
-    const chats = await client.api('/me/chats').get();
-    return chats.value.map((chat: any) => ({
-      id: chat.id,
-      displayName: chat.topic || `Chat với ${chat.members?.length || 'N/A'} members`,
-      chatType: chat.chatType,
-      lastUpdated: chat.lastUpdatedDateTime,
-    }));
+    // Add timeout for token operations
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Graph client creation timeout')), 10000); // 10 second timeout
+    });
+    
+    const clientPromise = (async () => {
+      console.log('🎯 Getting valid auth token...');
+      let accessToken = await getValidAuthToken();
+      
+      if (!accessToken) {
+        console.log('🔄 No valid token, attempting refresh...');
+        // Try to refresh token
+        try {
+          const tokens = await refreshAccessToken();
+          await saveAuthToken(
+            tokens.access_token,
+            tokens.refresh_token,
+            tokens.expires_in,
+            TEAMS_CONFIG.scopes.join(' ')
+          );
+          accessToken = tokens.access_token;
+          console.log('✅ Token refreshed successfully');
+        } catch (error) {
+          console.error('❌ Token refresh failed:', error);
+          throw new Error('Authentication required - please re-authorize with Teams');
+        }
+      } else {
+        console.log('✅ Valid token found');
+      }
+
+      console.log('🔧 Initializing Graph client...');
+      return Client.init({
+        authProvider: async () => accessToken!,
+      });
+    })();
+    
+    return await Promise.race([clientPromise, timeoutPromise]) as Client;
   } catch (error) {
-    console.error('Failed to get user chats:', error);
-    throw new Error('Failed to fetch Teams chats');
+    console.error('❌ Failed to create Graph client:', error);
+    
+    if (error instanceof Error && error.message.includes('timeout')) {
+      throw new Error('Authentication service is taking too long to respond. Please try again.');
+    }
+    
+    throw error;
   }
 }
 
-// Send message to Teams chat
+// Get user's Teams chats with timeout
+export async function getUserChats() {
+  console.log('🔍 Getting user Teams chats...');
+  
+  try {
+    // Add timeout to prevent long-running requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Teams chats fetch timeout')), 20000); // 20 second timeout
+    });
+    
+    const chatsPromise = (async () => {
+      console.log('📊 Creating Graph API client...');
+      const client = await getGraphClient();
+      
+      console.log('📋 Fetching chats from Graph API...');
+      const chats = await client.api('/me/chats').get();
+      
+      console.log(`✅ Successfully fetched ${chats.value?.length || 0} chats`);
+      return chats.value.map((chat: any) => ({
+        id: chat.id,
+        displayName: chat.topic || `Chat với ${chat.members?.length || 'N/A'} members`,
+        chatType: chat.chatType,
+        lastUpdated: chat.lastUpdatedDateTime,
+      }));
+    })();
+    
+    return await Promise.race([chatsPromise, timeoutPromise]);
+  } catch (error) {
+    console.error('❌ Failed to get user chats:', error);
+    
+    // Return friendly error message based on error type
+    if (error instanceof Error && error.message.includes('timeout')) {
+      throw new Error('Teams API is taking too long to respond. Please try again.');
+    }
+    
+    throw new Error('Failed to fetch Teams chats. Please check your connection and try again.');
+  }
+}
+
+// Send message to Teams chat with timeout
 export async function sendMessageToChat(
   chatId: string,
   message: string,
   contentType: 'text' | 'html' = 'html'
 ): Promise<string> {
-  const client = await getGraphClient();
+  console.log(`📤 Sending message to chat: ${chatId}`);
   
   try {
-    const result = await client.api(`/chats/${chatId}/messages`).post({
-      body: {
-        content: message,
-        contentType: contentType,
-      },
+    // Add timeout to prevent long-running requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Send message timeout')), 15000); // 15 second timeout
     });
     
-    return result.id;
+    const sendPromise = (async () => {
+      console.log('📊 Creating Graph API client for sending message...');
+      const client = await getGraphClient();
+      
+      console.log('📨 Posting message to Teams chat...');
+      const result = await client.api(`/chats/${chatId}/messages`).post({
+        body: {
+          content: message,
+          contentType: contentType,
+        },
+      });
+      
+      console.log('✅ Message sent successfully, ID:', result.id);
+      return result.id;
+    })();
+    
+    return await Promise.race([sendPromise, timeoutPromise]);
   } catch (error) {
-    console.error('Failed to send message to chat:', error);
-    throw new Error('Failed to send message to Teams chat');
+    console.error('❌ Failed to send message to chat:', error);
+    
+    // Return friendly error message based on error type
+    if (error instanceof Error && error.message.includes('timeout')) {
+      throw new Error('Teams API is taking too long to send message. The message may still be delivered.');
+    }
+    
+    throw new Error('Failed to send message to Teams chat. Please check your permissions and try again.');
   }
 }
 

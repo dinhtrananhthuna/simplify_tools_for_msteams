@@ -32,6 +32,8 @@ export default function PRNotifierPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ isAuthenticated: false });
   const [teamsChats, setTeamsChats] = useState<TeamsChat[]>([]);
+  const [chatsLoading, setChatsLoading] = useState(false);
+  const [chatsError, setChatsError] = useState<string | null>(null);
   const [config, setConfig] = useState<PRNotifierConfig>({
     azureDevOpsUrl: '',
     targetChatId: '',
@@ -58,11 +60,7 @@ export default function PRNotifierPage() {
 
       if (authData.isAuthenticated) {
         // Load Teams chats
-        const chatsResponse = await fetch('/api/teams/chats');
-        if (chatsResponse.ok) {
-          const chatsData = await chatsResponse.json();
-          setTeamsChats(chatsData.chats || []);
-        }
+        await loadTeamsChats();
       }
 
       // Load current configuration
@@ -78,6 +76,27 @@ export default function PRNotifierPage() {
       console.error('Failed to load data:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadTeamsChats = async () => {
+    setChatsLoading(true);
+    setChatsError(null);
+    
+    try {
+      const chatsResponse = await fetch('/api/teams/chats');
+      const chatsData = await chatsResponse.json();
+      
+      if (chatsResponse.ok && chatsData.success) {
+        setTeamsChats(chatsData.chats || []);
+      } else {
+        setChatsError(chatsData.error || 'Failed to load Teams chats');
+      }
+    } catch (error) {
+      console.error('Failed to load Teams chats:', error);
+      setChatsError('Network error while loading chats. Please try again.');
+    } finally {
+      setChatsLoading(false);
     }
   };
 
@@ -267,8 +286,24 @@ export default function PRNotifierPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Target Teams Chat
             </label>
-            {authStatus.isAuthenticated ? (
-              teamsChats.length > 0 ? (
+                          {authStatus.isAuthenticated ? (
+                chatsLoading ? (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600">
+                    🔄 Loading Teams chats...
+                  </div>
+                ) : chatsError ? (
+                  <div className="space-y-2">
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                      ❌ {chatsError}
+                    </div>
+                    <button
+                      onClick={loadTeamsChats}
+                      className="btn-secondary text-sm"
+                    >
+                      🔄 Retry Loading Chats
+                    </button>
+                  </div>
+                ) : teamsChats.length > 0 ? (
                 <select
                   value={config.targetChatId}
                   onChange={(e) => setConfig(prev => ({ ...prev, targetChatId: e.target.value }))}

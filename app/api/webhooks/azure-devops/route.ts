@@ -172,11 +172,22 @@ export async function POST(request: NextRequest) {
     
     // Send message to Teams chat
     try {
-      const messageId = await sendMessageToChat(
+      console.log('📤 Webhook: Sending message to Teams...');
+      
+      // Add timeout for Teams message sending
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Teams message send timeout')), 20000); // 20 second timeout
+      });
+      
+      const sendPromise = sendMessageToChat(
         config.targetChatId,
         message,
         'html'
       );
+      
+      const messageId = await Promise.race([sendPromise, timeoutPromise]) as string;
+      
+      console.log('✅ Webhook: Teams message sent successfully');
       
       // Log success
       await logWebhookEvent(
@@ -196,6 +207,8 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
+      console.error('❌ Webhook: Failed to send Teams message:', error);
+      
       // Log failure
       await logWebhookEvent(
         webhookData.eventType,
@@ -204,7 +217,14 @@ export async function POST(request: NextRequest) {
         errorMessage
       );
       
-      console.error('Failed to send Teams message:', error);
+      // Return more specific error messages
+      if (errorMessage.includes('timeout')) {
+        return Response.json({
+          success: false,
+          error: 'Teams notification timed out. The webhook was processed but message sending failed.',
+        }, { status: 202 }); // 202 Accepted - webhook processed but message may be delayed
+      }
+      
       return Response.json(
         { success: false, error: 'Failed to send Teams notification' },
         { status: 500 }
