@@ -1,0 +1,258 @@
+import React from 'react';
+import { z } from 'zod';
+
+// ============ Database Types ============
+
+export interface AuthToken {
+  id: number;
+  user_id: string;
+  access_token: string;  // Will be encrypted
+  refresh_token: string; // Will be encrypted
+  expires_at: Date;
+  scope: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface Tool {
+  id: string;
+  name: string;
+  description?: string;
+  category: 'automation' | 'productivity' | 'integration';
+  config: Record<string, any>;
+  is_active: boolean;
+  permissions_granted?: Record<string, any>;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface WebhookLog {
+  id: number;
+  tool_id: string;
+  webhook_source: string;
+  event_type: string;
+  payload?: Record<string, any>;
+  processed_at?: Date;
+  status: 'pending' | 'success' | 'failed';
+  error_message?: string;
+  teams_message_id?: string;
+  created_at: Date;
+}
+
+export interface ToolSetting {
+  key: string;
+  value: Record<string, any>;
+  description?: string;
+  updated_at: Date;
+}
+
+// ============ Tool Registry Types ============
+
+export interface ToolDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: 'automation' | 'productivity' | 'integration';
+  permissions: string[];
+  configSchema: z.ZodSchema;
+  webhookEndpoint?: string;
+  setupComponent: React.ComponentType<{ tool?: Tool }>;
+}
+
+export interface ToolConfig {
+  [key: string]: any;
+}
+
+// ============ MS Teams Types ============
+
+export interface TeamsChat {
+  id: string;
+  displayName: string;
+  chatType: 'oneOnOne' | 'group' | 'meeting';
+  members?: TeamsChatMember[];
+}
+
+export interface TeamsChatMember {
+  id: string;
+  displayName: string;
+  email?: string;
+  roles: string[];
+}
+
+export interface TeamsMessage {
+  id: string;
+  body: {
+    content: string;
+    contentType: 'text' | 'html';
+  };
+  from: {
+    user: {
+      id: string;
+      displayName: string;
+    };
+  };
+  createdDateTime: string;
+  chatId: string;
+}
+
+// ============ Azure DevOps Types ============
+
+export interface AzureDevOpsPullRequest {
+  pullRequestId: number;
+  title: string;
+  description: string;
+  status: string;
+  createdBy: {
+    displayName: string;
+    uniqueName: string;
+    imageUrl?: string;
+  };
+  repository: {
+    id: string;
+    name: string;
+    webUrl: string;
+  };
+  sourceRefName: string;
+  targetRefName: string;
+  url: string;
+  creationDate: string;
+  reviewers?: Array<{
+    displayName: string;
+    vote: number;
+    isRequired: boolean;
+  }>;
+}
+
+export interface AzureDevOpsWebhook {
+  eventType: string;
+  publisherId: string;
+  resource: {
+    pullRequestId: number;
+    status: string;
+    title: string;
+    description: string;
+    sourceRefName: string;
+    targetRefName: string;
+    repository: {
+      id: string;
+      name: string;
+      webUrl: string;
+    };
+    createdBy: {
+      displayName: string;
+      uniqueName: string;
+    };
+    url: string;
+    creationDate: string;
+  };
+  resourceVersion: string;
+  resourceContainers: Record<string, any>;
+  createdDate: string;
+}
+
+// ============ API Response Types ============
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
+// ============ Form Types ============
+
+export interface PRNotifierConfig {
+  azureDevOpsUrl: string;
+  targetChatId: string;
+  messageTemplate?: string;
+  enableMentions: boolean;
+  mentionUsers: string[];
+}
+
+// ============ Validation Schemas ============
+
+export const PRNotifierConfigSchema = z.object({
+  azureDevOpsUrl: z.string().url('Invalid Azure DevOps URL'),
+  targetChatId: z.string().min(1, 'Please select a target chat'),
+  messageTemplate: z.string().optional(),
+  enableMentions: z.boolean().default(false),
+  mentionUsers: z.array(z.string()).default([]),
+});
+
+export const WebhookPayloadSchema = z.object({
+  eventType: z.string(),
+  publisherId: z.string(),
+  resource: z.object({
+    pullRequestId: z.number(),
+    title: z.string(),
+    status: z.string(),
+    repository: z.object({
+      name: z.string(),
+      webUrl: z.string(),
+    }),
+    createdBy: z.object({
+      displayName: z.string(),
+      uniqueName: z.string(),
+    }),
+    url: z.string(),
+  }),
+});
+
+// ============ Utility Types ============
+
+export type ToolStatus = 'active' | 'inactive' | 'setup_needed' | 'error';
+
+export interface ToolStats {
+  id: string;
+  name: string;
+  status: ToolStatus;
+  lastActivity?: Date;
+  totalEvents: number;
+  successRate: number;
+  errorCount: number;
+}
+
+export interface DashboardStats {
+  totalTools: number;
+  activeTools: number;
+  totalWebhooks: number;
+  todayWebhooks: number;
+  successRate: number;
+  recentLogs: WebhookLog[];
+}
+
+// ============ Environment Types ============
+
+export interface AppConfig {
+  database: {
+    url: string;
+    maxConnections: number;
+  };
+  auth: {
+    adminUser: string;
+    adminPass: string;
+    encryptionKey: string;
+  };
+  teams: {
+    clientId: string;
+    clientSecret: string;
+    tenantId: string;
+  };
+  webhook: {
+    secret: string;
+  };
+  app: {
+    baseUrl: string;
+    environment: 'development' | 'production';
+  };
+} 

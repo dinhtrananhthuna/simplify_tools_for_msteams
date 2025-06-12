@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Custom components */
+  .tool-card {
+    @apply bg-card border border-border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow;
+  }
+  
+  .tool-card-active {
+    @apply ring-2 ring-teams-purple/20 border-teams-purple/30;
+  }
+  
+  .tool-card-inactive {
+    @apply opacity-75;
+  }
+  
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-active {
+    @apply bg-teams-green/10 text-teams-green border border-teams-green/20;
+  }
+  
+  .status-inactive {
+    @apply bg-gray-100 text-gray-700 border border-gray-200;
+  }
+  
+  .status-setup-needed {
+    @apply bg-teams-orange/10 text-teams-orange border border-teams-orange/20;
+  }
+  
+  .status-error {
+    @apply bg-teams-red/10 text-teams-red border border-teams-red/20;
+  }
+  
+  .btn-primary {
+    @apply bg-teams-purple hover:bg-teams-purple/90 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary hover:bg-secondary/80 text-secondary-foreground font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .input-field {
+    @apply w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent;
+  }
+  
+  .page-header {
+    @apply border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60;
+  }
+  
+  .sidebar {
+    @apply border-r border-border bg-background;
+  }
+  
+  .main-content {
+    @apply flex-1 overflow-auto;
+  }
+}
+
+@layer utilities {
+  .text-teams-purple {
+    color: #6264A7;
+  }
+  
+  .text-teams-blue {
+    color: #2E8BE6;
+  }
+  
+  .text-teams-green {
+    color: #107C10;
+  }
+  
+  .text-teams-orange {
+    color: #F59E0B;
+  }
+  
+  .text-teams-red {
+    color: #DC2626;
+  }
+  
+  .bg-teams-purple {
+    background-color: #6264A7;
+  }
+  
+  .bg-teams-blue {
+    background-color: #2E8BE6;
+  }
+  
+  .bg-teams-green {
+    background-color: #107C10;
+  }
+  
+  .bg-teams-orange {
+    background-color: #F59E0B;
+  }
+  
+  .bg-teams-red {
+    background-color: #DC2626;
+  }
+} 
