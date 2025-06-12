@@ -334,11 +334,11 @@ export async function getUserChats() {
   }
 }
 
-// Send message to Teams chat with timeout
+// Send message to Teams chat with timeout (supports both text and Adaptive Cards)
 export async function sendMessageToChat(
   chatId: string,
-  message: string,
-  contentType: 'text' | 'html' = 'html'
+  message: string | any,
+  contentType: 'text' | 'html' | 'adaptiveCard' = 'html'
 ): Promise<string> {
   console.log(`📤 Sending message to chat: ${chatId}`);
   
@@ -353,12 +353,29 @@ export async function sendMessageToChat(
       const client = await getGraphClient();
       
       console.log('📨 Posting message to Teams chat...');
-      const result = await client.api(`/chats/${chatId}/messages`).post({
-        body: {
-          content: message,
-          contentType: contentType,
-        },
-      });
+      
+      let messagePayload: any;
+      
+      if (contentType === 'adaptiveCard' && typeof message === 'object') {
+        // Send Adaptive Card
+        messagePayload = {
+          body: {
+            content: '<attachment id="card"></attachment>',
+            contentType: 'html',
+          },
+          attachments: message.attachments || [message]
+        };
+      } else {
+        // Send regular text/html message
+        messagePayload = {
+          body: {
+            content: typeof message === 'string' ? message : JSON.stringify(message),
+            contentType: contentType === 'adaptiveCard' ? 'html' : contentType,
+          },
+        };
+      }
+      
+      const result = await client.api(`/chats/${chatId}/messages`).post(messagePayload);
       
       console.log('✅ Message sent successfully, ID:', result.id);
       return result.id;
@@ -377,7 +394,7 @@ export async function sendMessageToChat(
   }
 }
 
-// Format pull request message for Teams
+// Format pull request message for Teams using Adaptive Cards
 export function formatPullRequestMessage(prData: {
   title: string;
   author: string;
@@ -387,25 +404,111 @@ export function formatPullRequestMessage(prData: {
   url: string;
   description?: string;
   mentions?: string[];
+}): any {
+  const { title, author, sourceBranch, targetBranch, url, description, mentions } = prData;
+  
+  // Create simplified Adaptive Card
+  const adaptiveCard = {
+    contentType: "application/vnd.microsoft.card.adaptive",
+    content: {
+      type: "AdaptiveCard",
+      version: "1.3",
+      body: [
+        {
+          type: "TextBlock",
+          text: "New Pull Request",
+          weight: "Bolder",
+          size: "Medium",
+          color: "Accent"
+        },
+        {
+          type: "TextBlock",
+          text: title,
+          weight: "Bolder",
+          size: "Large",
+          wrap: true
+        },
+        {
+          type: "FactSet",
+          facts: [
+            {
+              title: "Author",
+              value: author
+            },
+            {
+              title: "Branch",
+              value: `${sourceBranch} → ${targetBranch}`
+            }
+          ]
+        },
+        ...(description ? [{
+          type: "TextBlock",
+          text: description,
+          wrap: true,
+          spacing: "Medium"
+        }] : []),
+        {
+          type: "TextBlock",
+          text: "Please review this pull request and provide your feedback.",
+          wrap: true,
+          spacing: "Medium",
+          isSubtle: true
+        }
+      ],
+      actions: [
+        {
+          type: "Action.OpenUrl",
+          title: "View Pull Request",
+          url: url
+        }
+      ]
+    }
+  };
+
+  // Add mentions if provided
+  if (mentions && mentions.length > 0) {
+    const mentionText = mentions.map(user => `<at>${user}</at>`).join(' ');
+    (adaptiveCard.content.body as any[]).push({
+      type: "TextBlock",
+      text: `${mentionText} - Your review is requested!`,
+      wrap: true,
+      spacing: "Medium",
+      weight: "Bolder"
+    });
+  }
+
+  return adaptiveCard;
+}
+
+// Fallback HTML message format
+export function formatPullRequestMessageHTML(prData: {
+  title: string;
+  author: string;
+  repository: string;
+  sourceBranch: string;
+  targetBranch: string;
+  url: string;
+  description?: string;
+  mentions?: string[];
 }): string {
-  const { title, author, repository, sourceBranch, targetBranch, url, description, mentions } = prData;
+  const { title, author, sourceBranch, targetBranch, url, description, mentions } = prData;
   
   let message = `
     <div>
-      <h3>🔔 New Pull Request</h3>
+      <h3><strong>New Pull Request</strong></h3>
       <p><strong>${title}</strong></p>
-      <p>👤 <strong>Author:</strong> ${author}</p>
-      <p>📁 <strong>Repository:</strong> ${repository}</p>
-      <p>🌿 <strong>Branch:</strong> ${sourceBranch} → ${targetBranch}</p>
-      ${description ? `<p>📝 <strong>Description:</strong> ${description}</p>` : ''}
-      <p>🔗 <a href="${url}">View Pull Request</a></p>
+      <p><strong>Author:</strong> ${author}</p>
+      <p><strong>Branch:</strong> ${sourceBranch} → ${targetBranch}</p>
+      ${description ? `<p><strong>Description:</strong> ${description}</p>` : ''}
+      <p>Please review this pull request and provide your feedback.</p>
+      <p><a href="${url}">View Pull Request</a></p>
     </div>
   `;
 
   // Add mentions if provided
   if (mentions && mentions.length > 0) {
-    const mentionText = mentions.map(user => `@${user}`).join(' ');
-    message += `<p>👥 ${mentionText} - Please review!</p>`;
+    const mentionText = mentions.map(user => `<at>${user}</at>`).join(' ');
+    message += `<p><strong>${mentionText} - Your review is requested!</strong></p>`;
   }
 
   return message;

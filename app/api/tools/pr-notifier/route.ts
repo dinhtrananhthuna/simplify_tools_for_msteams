@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
           'Pull Request Notifier',
           'Tự động thông báo team về pull requests mới từ Azure DevOps',
           '🔔',
-          'development',
+          'automation',
           is_active,
           JSON.stringify(config),
           new Date(),

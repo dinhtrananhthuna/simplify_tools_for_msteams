@@ -46,16 +46,33 @@ export class SimpleTeamsClient {
     return this.makeRequest(`/me/chats?$top=${limit}&$select=id,topic,chatType,members&$expand=members`);
   }
 
-  async sendMessage(chatId: string, message: string) {
+  async sendMessage(chatId: string, message: string | any, contentType: 'text' | 'html' | 'adaptiveCard' = 'html') {
     console.log(`📤 Sending message to chat: ${chatId}`);
-    return this.makeRequest(`/chats/${chatId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({
+    
+    let messagePayload: any;
+    
+    if (contentType === 'adaptiveCard' && typeof message === 'object') {
+      // Send Adaptive Card
+      messagePayload = {
         body: {
-          content: message,
+          content: '<attachment id="adaptiveCard"></attachment>',
           contentType: 'html',
         },
-      }),
+        attachments: [message]
+      };
+    } else {
+      // Send regular text/html message
+      messagePayload = {
+        body: {
+          content: typeof message === 'string' ? message : JSON.stringify(message),
+          contentType: contentType === 'adaptiveCard' ? 'html' : contentType,
+        },
+      };
+    }
+    
+    return this.makeRequest(`/chats/${chatId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(messagePayload),
     });
   }
 }
@@ -154,12 +171,12 @@ export async function getSimpleChats(limit: number = 3) {
   }
 }
 
-export async function sendSimpleMessage(chatId: string, message: string) {
+export async function sendSimpleMessage(chatId: string, message: string | any, contentType: 'text' | 'html' | 'adaptiveCard' = 'html') {
   console.log(`📤 Sending message with simple client...`);
   
   try {
     const client = await SimpleTeamsClient.create();
-    const result = await client.sendMessage(chatId, message);
+    const result = await client.sendMessage(chatId, message, contentType);
     
     return result.id;
   } catch (error) {
