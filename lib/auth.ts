@@ -77,24 +77,37 @@ export async function saveAuthToken(
 }
 
 export async function getValidAuthToken(): Promise<string | null> {
-  const query = `
-    SELECT access_token, refresh_token, expires_at 
-    FROM auth_tokens 
-    WHERE user_id = $1 AND expires_at > NOW()
-    ORDER BY created_at DESC 
-    LIMIT 1
-  `;
-
-  const result = await executeQuerySingle<AuthToken>(query, ['admin']);
+  console.log('🔍 Checking for valid auth token...');
   
-  if (!result) {
-    return null;
-  }
-
   try {
-    return decryptToken(result.access_token);
-  } catch (error) {
-    console.error('Failed to decrypt access token:', error);
+    const query = `
+      SELECT access_token, refresh_token, expires_at 
+      FROM auth_tokens 
+      WHERE user_id = $1 AND expires_at > NOW()
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `;
+
+    console.log('📊 Executing database query for user: admin');
+    const result = await executeQuerySingle<AuthToken>(query, ['admin']);
+    console.log('📊 Database query result:', result ? 'Found token' : 'No token found');
+    
+    if (!result) {
+      console.log('❌ No valid token found in database');
+      return null;
+    }
+
+    console.log('🔓 Attempting to decrypt token...');
+    try {
+      const token = decryptToken(result.access_token);
+      console.log('✅ Token successfully decrypted, length:', token?.length || 0);
+      return token;
+    } catch (decryptError) {
+      console.error('❌ Failed to decrypt access token:', decryptError);
+      return null;
+    }
+  } catch (dbError) {
+    console.error('❌ Database error in getValidAuthToken:', dbError);
     return null;
   }
 }

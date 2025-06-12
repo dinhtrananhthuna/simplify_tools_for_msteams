@@ -4,7 +4,14 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const authStatus = await checkTeamsAuthStatus();
+    // Add timeout to prevent Vercel timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Status check timeout')), 25000); // 25 second timeout
+    });
+    
+    const statusPromise = checkTeamsAuthStatus();
+    
+    const authStatus = await Promise.race([statusPromise, timeoutPromise]) as Awaited<ReturnType<typeof checkTeamsAuthStatus>>;
     
     return Response.json({
       success: true,

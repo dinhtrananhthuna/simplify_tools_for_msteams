@@ -198,9 +198,76 @@ export async function checkTeamsAuthStatus(): Promise<{
   error?: string;
 }> {
   try {
-    const client = await getGraphClient();
-    const userInfo = await client.api('/me').get();
+    console.log('🔍 Checking Teams auth status...');
     
+    // First check if we have a valid token in database
+    const token = await getValidAuthToken();
+    console.log('🎯 Valid token from DB:', token ? 'YES' : 'NO');
+    
+    if (!token) {
+      console.log('❌ No valid token found in database');
+      return {
+        isAuthenticated: false,
+        error: 'No valid authentication token found',
+      };
+    }
+    
+    // Return authenticated status based on token existence
+    // We'll validate the token when actually using it, not during status check
+    console.log('✅ Valid token found in database');
+    return {
+      isAuthenticated: true,
+      userInfo: {
+        displayName: 'User',
+        email: 'Authenticated',
+        id: 'token-validated',
+      },
+    };
+  } catch (error) {
+    console.error('❌ Teams auth status check failed:', error);
+    return {
+      isAuthenticated: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+// Check Teams authentication status with Graph API validation (slower)
+export async function checkTeamsAuthStatusDetailed(): Promise<{
+  isAuthenticated: boolean;
+  userInfo?: any;
+  error?: string;
+}> {
+  try {
+    console.log('🔍 Checking Teams auth status with Graph API validation...');
+    
+    // First check if we have a valid token in database
+    const token = await getValidAuthToken();
+    console.log('🎯 Valid token from DB:', token ? 'YES' : 'NO');
+    
+    if (!token) {
+      console.log('❌ No valid token found in database');
+      return {
+        isAuthenticated: false,
+        error: 'No valid authentication token found',
+      };
+    }
+    
+    console.log('✅ Token found, testing Graph API access...');
+    
+    // Add timeout to Graph API call
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Graph API call timeout')), 10000); // 10 second timeout
+    });
+    
+    const graphApiPromise = (async () => {
+      const client = await getGraphClient();
+      return await client.api('/me').get();
+    })();
+    
+    const userInfo = await Promise.race([graphApiPromise, timeoutPromise]);
+    
+    console.log('✅ Graph API access successful');
     return {
       isAuthenticated: true,
       userInfo: {
@@ -210,6 +277,7 @@ export async function checkTeamsAuthStatus(): Promise<{
       },
     };
   } catch (error) {
+    console.error('❌ Teams auth status check failed:', error);
     return {
       isAuthenticated: false,
       error: error instanceof Error ? error.message : 'Unknown error',
