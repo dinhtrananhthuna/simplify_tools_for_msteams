@@ -342,14 +342,23 @@ export async function sendMessageToChat(
       let messagePayload: any;
       
       if (contentType === 'adaptiveCard' && typeof message === 'object') {
-        // Send Adaptive Card
+        // Generate unique ID for attachment (required by Graph API)
+        const attachmentId = crypto.randomUUID();
+        
+        // Send Adaptive Card with correct Graph API format (content phải là string)
         messagePayload = {
           body: {
-            content: '<attachment id="card"></attachment>',
+            content: `<attachment id=\"${attachmentId}\"></attachment>`,
             contentType: 'html',
           },
-          attachments: message.attachments || [message]
+          attachments: [{
+            id: attachmentId,
+            contentType: message.contentType || "application/vnd.microsoft.card.adaptive",
+            content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content || message)
+          }]
         };
+        
+        console.log('📋 Adaptive Card payload:', JSON.stringify(messagePayload, null, 2));
       } else {
         // Send regular text/html message
         messagePayload = {

@@ -13,6 +13,8 @@ interface TestResult {
 export default function TestAPIPage() {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [testData, setTestData] = useState({ chatId: '', cardType: 'simple' });
+  const [loading, setLoading] = useState(false);
 
   const endpoints = [
     { name: 'Auth Status', path: '/api/auth/teams/status' },
@@ -155,6 +157,129 @@ export default function TestAPIPage() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* Test Adaptive Card */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h2 className="text-lg font-medium text-gray-900 mb-4">
+          🎴 Test Adaptive Card
+        </h2>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Chat ID
+            </label>
+            <input
+              type="text"
+              value={testData.chatId}
+              onChange={(e) => setTestData({ ...testData, chatId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="19:xxx@thread.v2"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Card Type
+            </label>
+            <select
+              value={testData.cardType || 'simple'}
+              onChange={(e) => setTestData({ ...testData, cardType: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="simple">Simple Test Card</option>
+              <option value="pr">PR Style Card</option>
+            </select>
+          </div>
+          
+          <div className="flex space-x-3">
+            <button
+              onClick={async () => {
+                if (!testData.chatId) {
+                  alert('Vui lòng nhập Chat ID');
+                  return;
+                }
+                
+                setLoading(true);
+                try {
+                  const response = await fetch('/api/debug/test-adaptive-card', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      chatId: testData.chatId,
+                      cardType: testData.cardType || 'simple'
+                    }),
+                  });
+                  
+                  const result = await response.json();
+                  
+                  if (result.success) {
+                    setTestResults(prev => [...prev, {
+                      endpoint: '/api/debug/test-adaptive-card',
+                      status: 'success',
+                      data: result
+                    }]);
+                    alert('✅ Adaptive Card sent successfully!');
+                  } else {
+                    throw new Error(result.error);
+                  }
+                } catch (error) {
+                  setTestResults(prev => [...prev, {
+                    endpoint: '/api/debug/test-adaptive-card',
+                    status: 'error',
+                    data: { error: error instanceof Error ? error.message : 'Unknown error' }
+                  }]);
+                  alert(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className="btn-primary"
+            >
+              {loading ? '⏳ Sending...' : '🎴 Send Test Card'}
+            </button>
+            
+            <button
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const response = await fetch('/api/debug/test-adaptive-card');
+                  const result = await response.json();
+                  
+                  setTestResults(prev => [...prev, {
+                    endpoint: '/api/debug/test-adaptive-card',
+                    status: 'success',
+                    data: result
+                  }]);
+                } catch (error) {
+                  setTestResults(prev => [...prev, {
+                    endpoint: '/api/debug/test-adaptive-card',
+                    status: 'error',
+                    data: { error: error instanceof Error ? error.message : 'Unknown error' }
+                  }]);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className="btn-secondary"
+            >
+              📖 View API Info
+            </button>
+          </div>
+          
+          <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">
+            <p><strong>💡 Hướng dẫn:</strong></p>
+            <ul className="list-disc list-inside mt-1 space-y-1">
+              <li>Lấy Chat ID từ trang Teams Chats</li>
+              <li>Simple Card: Test cơ bản Adaptive Card</li>
+              <li>PR Card: Test card giống PR notification</li>
+              <li>Kiểm tra log server để debug lỗi</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       {/* Instructions */}
