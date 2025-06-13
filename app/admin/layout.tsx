@@ -4,9 +4,11 @@ const navigation = [
   { name: '📊 Dashboard', href: '/admin' },
   { name: '🔐 Teams Auth', href: '/admin/auth' },
   { name: '🔧 Tools', href: '/admin/tools' },
-  { name: '🚀 PR Notifier', href: '/admin/tools/pr-notifier' },
   { name: '⚙️ Settings', href: '/admin/settings' },
   { name: '🔗 Webhooks', href: '/admin/webhooks' },
+];
+
+const debuggingItems = [
   { name: '🧪 Test API', href: '/admin/test-api' },
   { name: '🔍 Test Auth', href: '/admin/test-auth' },
 ];
@@ -24,11 +26,11 @@ export default function AdminLayout({
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <h1 className="text-xl font-semibold text-gray-900">
-                🚀 MS Teams Tools Suite
+                🚀 MS Teams Tools Suite - Admin Panel
               </h1>
             </div>
             <div className="text-sm text-gray-500">
-              Admin Panel - No Authentication Required
+              Admin Panel - No Authentication Required - Just only for Vu Dinh
             </div>
           </div>
         </div>
@@ -39,6 +41,7 @@ export default function AdminLayout({
         <nav className="bg-white w-64 min-h-screen border-r border-gray-200">
           <div className="p-4">
             <ul className="space-y-2">
+              {/* Main navigation items */}
               {navigation.map((item) => (
                 <li key={item.name}>
                   <Link
@@ -49,6 +52,25 @@ export default function AdminLayout({
                   </Link>
                 </li>
               ))}
+              
+              {/* Debugging section */}
+              <li className="pt-4">
+                <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  🐛 Debugging
+                </div>
+                <ul className="mt-1 space-y-1">
+                  {debuggingItems.map((item) => (
+                    <li key={item.name}>
+                      <Link
+                        href={item.href}
+                        className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors ml-3"
+                      >
+                        {item.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </li>
             </ul>
           </div>
         </nav>
