@@ -401,7 +401,7 @@ export function formatPullRequestMessage(prData: {
 }): any {
   const { title, author, sourceBranch, targetBranch, url, description, mentions } = prData;
   
-  // Create simplified Adaptive Card
+  // Create improved Adaptive Card (English)
   const adaptiveCard = {
     contentType: "application/vnd.microsoft.card.adaptive",
     content: {
@@ -410,17 +410,19 @@ export function formatPullRequestMessage(prData: {
       body: [
         {
           type: "TextBlock",
-          text: "New Pull Request",
+          text: "🔔 Pull Request Notification",
           weight: "Bolder",
           size: "Medium",
-          color: "Accent"
+          color: "Accent",
+          spacing: "None"
         },
         {
           type: "TextBlock",
           text: title,
           weight: "Bolder",
           size: "Large",
-          wrap: true
+          wrap: true,
+          spacing: "Small"
         },
         {
           type: "FactSet",
@@ -439,7 +441,10 @@ export function formatPullRequestMessage(prData: {
           type: "TextBlock",
           text: description,
           wrap: true,
-          spacing: "Medium"
+          spacing: "Medium",
+          color: "Good",
+          isSubtle: false,
+          italic: true
         }] : []),
         {
           type: "TextBlock",

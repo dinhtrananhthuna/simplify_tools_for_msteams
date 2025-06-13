@@ -1,4 +1,4 @@
-npimport { NextRequest } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { sendSimpleMessage } from '../../../../lib/teams-simple';
 import { formatPullRequestMessage, formatPullRequestMessageHTML } from '../../../../lib/teams';
