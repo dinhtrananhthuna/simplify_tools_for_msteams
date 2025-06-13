@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 const navigation = [
   { name: '📊 Dashboard', href: '/admin' },
+  { name: '🔐 Teams Auth', href: '/admin/auth' },
   { name: '🔧 Tools', href: '/admin/tools' },
   { name: '🚀 PR Notifier', href: '/admin/tools/pr-notifier' },
   { name: '⚙️ Settings', href: '/admin/settings' },
