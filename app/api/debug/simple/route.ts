@@ -1,4 +1,4 @@
-import { getValidAuthToken } from '../../../../lib/auth';
+import { getValidAuthToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 

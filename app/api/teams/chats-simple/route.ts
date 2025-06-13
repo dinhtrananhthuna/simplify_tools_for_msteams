@@ -1,4 +1,4 @@
-import { getSimpleChats } from '../../../../lib/teams-simple';
+import { getSimpleChats } from '@/lib/teams-simple';
 
 export const dynamic = 'force-dynamic';
 

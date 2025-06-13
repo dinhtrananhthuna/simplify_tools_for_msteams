@@ -1,5 +1,5 @@
-import { executeQuery } from '../../../lib/db';
-import type { Tool, WebhookLog } from '../../../types';
+import { executeQuery } from '@/lib/db';
+import type { Tool, WebhookLog } from '@/types';
 
 export const dynamic = 'force-dynamic';
 

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { executeQuery } from '../../../../lib/db';
-import type { Tool, PRNotifierConfig } from '../../../../types';
+import { executeQuery } from '@/lib/db';
+import type { Tool, PRNotifierConfig } from '@/types';
 
 export const dynamic = 'force-dynamic';
 

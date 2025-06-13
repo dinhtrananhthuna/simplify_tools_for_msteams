@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface TeamsChat {
   id: string;
@@ -34,6 +41,7 @@ interface AuthStatus {
 }
 
 export default function PRNotifierPage() {
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ isAuthenticated: false });
   const [teamsChats, setTeamsChats] = useState<TeamsChat[]>([]);
@@ -119,6 +127,24 @@ export default function PRNotifierPage() {
     window.location.href = '/api/auth/teams';
   };
 
+  const handleCopyWebhookUrl = async () => {
+    const webhookUrl = `${window.location.origin}/api/webhooks/azure-devops`;
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      toast({
+        variant: 'success',
+        title: 'Đã copy!',
+        description: 'Webhook URL đã được sao chép vào clipboard',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi!',
+        description: 'Không thể sao chép URL. Vui lòng thử lại.',
+      });
+    }
+  };
+
   const handleSaveConfig = async () => {
     setIsSaving(true);
     
@@ -135,13 +161,25 @@ export default function PRNotifierPage() {
       });
 
       if (response.ok) {
-        alert('Configuration saved successfully!');
+        toast({
+          variant: 'success',
+          title: 'Thành công!',
+          description: 'Cấu hình đã được lưu thành công',
+        });
       } else {
         const error = await response.json();
-        alert(`Failed to save: ${error.error}`);
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi!',
+          description: `Không thể lưu: ${error.error}`,
+        });
       }
     } catch (error) {
-      alert('Failed to save configuration');
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi!',
+        description: 'Không thể lưu cấu hình',
+      });
       console.error('Save error:', error);
     } finally {
       setIsSaving(false);
@@ -181,7 +219,8 @@ export default function PRNotifierPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <TooltipProvider>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -469,12 +508,19 @@ export default function PRNotifierPage() {
                 readOnly
                 className="input-field flex-1 bg-gray-50"
               />
-              <button
-                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/azure-devops`)}
-                className="btn-secondary px-3"
-              >
-                📋
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleCopyWebhookUrl}
+                    className="btn-secondary px-3 hover:bg-gray-100 transition-colors"
+                  >
+                    📋
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Copy webhook URL</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -491,5 +537,6 @@ export default function PRNotifierPage() {
         </div>
       </div>
     </div>
+    </TooltipProvider>
   );
 } 
