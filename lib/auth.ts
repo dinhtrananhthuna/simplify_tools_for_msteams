@@ -204,15 +204,9 @@ export async function getValidAuthToken(): Promise<string | null> {
         
         console.log('💾 New tokens saved to database');
         
-        // Decrypt and return new access token
-        const newAccessToken = decryptToken(tokens.access_token);
-        if (!newAccessToken) {
-          console.error('❌ Failed to decrypt new access token');
-          return null;
-        }
-        
+        // Return the fresh access token directly (it's not encrypted yet)
         console.log('✅ Token refresh completed successfully');
-        return newAccessToken;
+        return tokens.access_token;
       } catch (refreshError) {
         console.error('❌ Token refresh failed:', refreshError);
         
