@@ -57,11 +57,7 @@ export default function AuthPage() {
     window.location.href = '/api/auth/teams';
   };
 
-  const handleLogout = () => {
-    // Clear admin auth
-    localStorage.removeItem('adminAuth');
-    window.location.href = '/admin/login';
-  };
+
 
   const handleForceRefresh = async () => {
     setIsRefreshing(true);
@@ -142,30 +138,7 @@ export default function AuthPage() {
         )}
       </div>
 
-      {/* Admin Authentication */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          👤 Admin Authentication
-        </h2>
-        
-        <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-          <div>
-            <div className="flex items-center">
-              <span className="w-3 h-3 bg-green-500 rounded-full mr-3"></span>
-              <span className="font-medium text-green-900">Logged in as Admin</span>
-            </div>
-            <p className="text-sm text-green-700 mt-1">
-              Session active since login
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="btn-secondary text-sm"
-          >
-            🚪 Logout
-          </button>
-        </div>
-      </div>
+
 
       {/* Teams Authentication */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -305,13 +278,7 @@ export default function AuthPage() {
             <span className="text-green-500">✅ Enabled</span>
           </div>
 
-          <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-            <div>
-              <h3 className="font-medium text-gray-900">Admin Basic Auth</h3>
-              <p className="text-sm text-gray-500">Admin panel protected by username/password</p>
-            </div>
-            <span className="text-green-500">✅ Enabled</span>
-          </div>
+
 
           <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
             <div>

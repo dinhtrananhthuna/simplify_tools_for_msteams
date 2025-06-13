@@ -371,13 +371,19 @@ export default function PRNotifierPage() {
                       <span className="text-sm text-gray-600">
                         Found {teamsChats.length} chats
                       </span>
-                      <button
-                        onClick={() => loadTeamsChats(true)}
-                        className="btn-secondary text-xs"
-                        title="Force refresh to get latest chats"
-                      >
-                        🔄 Refresh
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => loadTeamsChats(true)}
+                            className="btn-secondary text-xs"
+                          >
+                            🔄 Refresh
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Force refresh to get latest chats</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     <div className="space-y-3">
                       <select

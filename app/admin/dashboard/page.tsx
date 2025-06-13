@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Tool {
   id: string;
@@ -114,7 +120,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <TooltipProvider>
+      <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">📊 Dashboard</h1>
@@ -258,12 +265,16 @@ export default function DashboardPage() {
                     {webhook.status}
                   </span>
                   {webhook.error_message && (
-                    <span
-                      className="text-red-500 cursor-help"
-                      title={webhook.error_message}
-                    >
-                      ⚠️
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-red-500 cursor-help">
+                          ⚠️
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{webhook.error_message}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
               </div>
@@ -311,5 +322,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+    </TooltipProvider>
   );
 } 

@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  console.log('🔍 Middleware called for:', request.nextUrl.pathname);
-
-  // Không cần authentication nữa - cho phép truy cập tất cả routes
-  console.log('✅ No authentication required, allowing all access');
+  // Allow access to all routes
 
   // Security headers for all routes
   const response = NextResponse.next();
