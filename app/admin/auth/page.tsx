@@ -12,6 +12,7 @@ interface AuthStatus {
   error?: string;
   expiresAt?: string;
   scope?: string;
+  timeUntilExpiry?: number;
 }
 
 export default function AuthPage() {
@@ -71,12 +72,17 @@ export default function AuthPage() {
       const data = await response.json();
       
       if (data.success) {
+        const message = data.forceRefresh 
+          ? `Token force refreshed successfully! 🚀\n📅 New expiry: ${data.newTokenInfo?.newExpiresAt ? new Date(data.newTokenInfo.newExpiresAt).toLocaleString('vi-VN') : 'N/A'}\n⏱️ Duration: ${data.newTokenInfo?.expiresIn ? Math.round(data.newTokenInfo.expiresIn / 60) + ' minutes' : 'N/A'}`
+          : data.tokenRefreshed 
+            ? 'Token refreshed successfully! 🔄' 
+            : 'Token was already valid ✅';
+            
         setOauthMessage({ 
           type: 'success', 
-          message: data.tokenRefreshed 
-            ? 'Token refreshed successfully! 🔄' 
-            : 'Token was already valid ✅' 
+          message 
         });
+        
         // Refresh auth status
         await checkAuthStatus();
       } else {
@@ -185,8 +191,18 @@ export default function AuthPage() {
                 {authStatus.expiresAt && (
                   <div className="text-sm text-green-700 mt-2">
                     <p><strong>Token expires:</strong> {new Date(authStatus.expiresAt).toLocaleString('vi-VN')}</p>
+                    {authStatus.timeUntilExpiry !== undefined && (
+                      <p><strong>Time remaining:</strong> {
+                        authStatus.timeUntilExpiry > 0 
+                          ? `${Math.round(authStatus.timeUntilExpiry / 60)} minutes (${authStatus.timeUntilExpiry} seconds)`
+                          : `EXPIRED ${Math.abs(Math.round(authStatus.timeUntilExpiry / 60))} minutes ago`
+                      }</p>
+                    )}
                     <p className="text-xs text-gray-600">
-                      Auto-refresh sẽ kích hoạt khi token còn dưới 5 phút
+                      {authStatus.timeUntilExpiry !== undefined && authStatus.timeUntilExpiry <= 300 
+                        ? '⚠️ Auto-refresh sẽ kích hoạt ngay lập tức (token expires soon/expired)'
+                        : '✅ Auto-refresh sẽ kích hoạt khi token còn dưới 5 phút'
+                      }
                     </p>
                   </div>
                 )}

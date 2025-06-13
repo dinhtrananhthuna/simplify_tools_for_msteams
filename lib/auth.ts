@@ -51,9 +51,54 @@ export async function saveAuthToken(
   expiresIn: number,
   scope: string
 ): Promise<void> {
+  console.log('💾 saveAuthToken: Starting to save tokens...');
+  
+  // Validate inputs with detailed logging
+  console.log('🔍 saveAuthToken: Input validation:', {
+    hasAccessToken: !!accessToken,
+    hasRefreshToken: !!refreshToken,
+    accessTokenLength: accessToken?.length || 0,
+    refreshTokenLength: refreshToken?.length || 0,
+    accessTokenType: typeof accessToken,
+    refreshTokenType: typeof refreshToken,
+    expiresIn,
+    scope
+  });
+  
+  if (!accessToken || typeof accessToken !== 'string' || accessToken.trim().length === 0) {
+    console.error('❌ saveAuthToken: Invalid access token');
+    throw new Error('Valid access token is required');
+  }
+  
+  if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
+    console.error('❌ saveAuthToken: Invalid refresh token');
+    throw new Error('Valid refresh token is required');
+  }
+  
+  console.log('✅ saveAuthToken: Input validation passed');
+  
+  // Test encryption before saving
+  try {
+    const testEncrypt = encryptToken(refreshToken);
+    const testDecrypt = decryptToken(testEncrypt);
+    if (testDecrypt !== refreshToken) {
+      throw new Error('Encryption test failed for refresh token');
+    }
+    console.log('✅ saveAuthToken: Encryption test passed');
+  } catch (error) {
+    console.error('❌ saveAuthToken: Encryption test failed:', error);
+    throw new Error(`Cannot encrypt refresh token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+  
   const encryptedAccessToken = encryptToken(accessToken);
   const encryptedRefreshToken = encryptToken(refreshToken);
   const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+  console.log('🔐 saveAuthToken: Tokens encrypted:', {
+    encryptedAccessTokenLength: encryptedAccessToken.length,
+    encryptedRefreshTokenLength: encryptedRefreshToken.length,
+    expiresAt: expiresAt.toISOString()
+  });
 
   const query = `
     INSERT INTO auth_tokens (user_id, access_token, refresh_token, expires_at, scope)
@@ -74,36 +119,53 @@ export async function saveAuthToken(
     expiresAt,
     scope
   ]);
+  
+  console.log('✅ saveAuthToken: Tokens saved to database successfully');
 }
 
 export async function getValidAuthToken(): Promise<string | null> {
-  console.log('🔍 Checking for valid auth token...');
-  
   try {
+    console.log('🔍 Getting valid auth token...');
+    
+    // Get latest token from database
     const query = `
-      SELECT access_token, refresh_token, expires_at 
+      SELECT access_token, refresh_token, expires_at, scope, created_at
       FROM auth_tokens 
-      WHERE user_id = $1
+      WHERE user_id = $1 
       ORDER BY created_at DESC 
       LIMIT 1
     `;
 
-    console.log('📊 Executing database query for user: admin');
     const result = await executeQuerySingle<AuthToken>(query, ['admin']);
-    console.log('📊 Database query result:', result ? 'Found token' : 'No token found');
     
     if (!result) {
       console.log('❌ No token found in database');
       return null;
     }
 
+    console.log('📊 Token info:', {
+      hasAccessToken: !!result.access_token,
+      hasRefreshToken: !!result.refresh_token,
+      expiresAt: result.expires_at,
+      createdAt: result.created_at,
+      scope: result.scope
+    });
+
+    // Calculate time until expiry
     const now = new Date();
     const expiresAt = new Date(result.expires_at);
     const timeUntilExpiry = expiresAt.getTime() - now.getTime();
     const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-    console.log(`⏰ Token expires at: ${expiresAt.toISOString()}`);
-    console.log(`⏰ Time until expiry: ${Math.round(timeUntilExpiry / 1000 / 60)} minutes`);
+    console.log('⏰ Token timing:', {
+      now: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      timeUntilExpiry: Math.round(timeUntilExpiry / 1000) + ' seconds',
+      timeUntilExpiryMs: timeUntilExpiry,
+      fiveMinutesMs: fiveMinutes,
+      shouldRefresh: timeUntilExpiry <= fiveMinutes,
+      tokenStatus: timeUntilExpiry <= 0 ? 'EXPIRED' : timeUntilExpiry <= fiveMinutes ? 'EXPIRES_SOON' : 'VALID'
+    });
 
     // If token is expired or expires within 5 minutes, try to refresh
     if (timeUntilExpiry <= fiveMinutes) {
@@ -112,7 +174,6 @@ export async function getValidAuthToken(): Promise<string | null> {
       try {
         console.log('🔓 Decrypting refresh token...');
         const refreshToken = decryptToken(result.refresh_token);
-        console.log('🔓 Refresh token decrypted, length:', refreshToken?.length || 0);
         
         if (!refreshToken || refreshToken.length === 0) {
           console.error('❌ Refresh token is empty after decryption');
@@ -122,6 +183,17 @@ export async function getValidAuthToken(): Promise<string | null> {
         console.log('🌐 Calling refresh token API...');
         const tokens = await refreshAccessTokenDirect(refreshToken);
         
+        if (!tokens.access_token || !tokens.refresh_token) {
+          console.error('❌ Invalid tokens received from refresh API');
+          return null;
+        }
+
+        console.log('✅ New tokens received:', {
+          hasAccessToken: !!tokens.access_token,
+          hasRefreshToken: !!tokens.refresh_token,
+          expiresIn: tokens.expires_in
+        });
+        
         // Save new tokens
         await saveAuthToken(
           tokens.access_token,
@@ -130,19 +202,42 @@ export async function getValidAuthToken(): Promise<string | null> {
           result.scope // Keep existing scope
         );
         
-        console.log('✅ Token refreshed successfully');
-        return tokens.access_token;
+        console.log('💾 New tokens saved to database');
+        
+        // Decrypt and return new access token
+        const newAccessToken = decryptToken(tokens.access_token);
+        if (!newAccessToken) {
+          console.error('❌ Failed to decrypt new access token');
+          return null;
+        }
+        
+        console.log('✅ Token refresh completed successfully');
+        return newAccessToken;
       } catch (refreshError) {
         console.error('❌ Token refresh failed:', refreshError);
+        
+        // If refresh failed due to invalid/expired refresh token, clear tokens
+        if (refreshError instanceof Error && 
+            (refreshError.message.includes('invalid_grant') || 
+             refreshError.message.includes('invalid_token'))) {
+          console.log('🗑️ Clearing invalid tokens...');
+          await clearAuthTokens();
+        }
+        
         return null;
       }
     }
 
     // Token is still valid, decrypt and return
-    console.log('🔓 Attempting to decrypt token...');
+    console.log('🔓 Decrypting valid access token...');
     try {
       const token = decryptToken(result.access_token);
-      console.log('✅ Token successfully decrypted, length:', token?.length || 0);
+      if (!token) {
+        console.error('❌ Failed to decrypt access token');
+        return null;
+      }
+      
+      console.log('✅ Using existing valid token');
       return token;
     } catch (decryptError) {
       console.error('❌ Failed to decrypt access token:', decryptError);
@@ -207,6 +302,8 @@ async function refreshAccessTokenDirect(refreshToken: string): Promise<{
 }
 
 export async function getRefreshToken(): Promise<string | null> {
+  console.log('🔍 getRefreshToken: Starting to get refresh token...');
+  
   const query = `
     SELECT refresh_token 
     FROM auth_tokens 
@@ -217,14 +314,28 @@ export async function getRefreshToken(): Promise<string | null> {
 
   const result = await executeQuerySingle<AuthToken>(query, ['admin']);
   
+  console.log('🔍 getRefreshToken: Database query result:', {
+    found: !!result,
+    hasRefreshToken: !!result?.refresh_token,
+    refreshTokenLength: result?.refresh_token?.length || 0
+  });
+  
   if (!result) {
+    console.log('❌ getRefreshToken: No result from database');
     return null;
   }
 
   try {
-    return decryptToken(result.refresh_token);
+    console.log('🔓 getRefreshToken: Attempting to decrypt refresh token...');
+    const decrypted = decryptToken(result.refresh_token);
+    console.log('✅ getRefreshToken: Decrypt successful, length:', decrypted?.length || 0);
+    return decrypted;
   } catch (error) {
-    console.error('Failed to decrypt refresh token:', error);
+    console.error('❌ getRefreshToken: Failed to decrypt refresh token:', error);
+    console.error('❌ getRefreshToken: Encrypted token info:', {
+      length: result.refresh_token?.length || 0,
+      preview: result.refresh_token ? result.refresh_token.substring(0, 50) + '...' : 'NULL'
+    });
     return null;
   }
 }
@@ -239,31 +350,69 @@ export async function hasValidAuth(): Promise<boolean> {
   return !!token;
 }
 
-// Get auth status for UI
-export async function getAuthStatus(): Promise<{
+export interface AuthStatus {
   isAuthenticated: boolean;
-  expiresAt?: Date;
+  expiresAt?: string;
+  timeUntilExpiry?: number;
   scope?: string;
-}> {
-  const query = `
-    SELECT expires_at, scope 
-    FROM auth_tokens 
-    WHERE user_id = $1 
-    ORDER BY created_at DESC 
-    LIMIT 1
-  `;
+  lastRefreshed?: string;
+  error?: string;
+}
 
-  const result = await executeQuerySingle<AuthToken>(query, ['admin']);
-  
-  if (!result) {
-    return { isAuthenticated: false };
+export async function getAuthStatus(): Promise<AuthStatus> {
+  try {
+    console.log('🔍 Getting auth status...');
+    
+    const query = `
+      SELECT access_token, refresh_token, expires_at, scope, created_at
+      FROM auth_tokens 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `;
+
+    const result = await executeQuerySingle<AuthToken>(query, ['admin']);
+    
+    if (!result) {
+      console.log('❌ No token found in database');
+      return {
+        isAuthenticated: false,
+        error: 'No authentication token found'
+      };
+    }
+
+    // Calculate time until expiry
+    const now = new Date();
+    const expiresAt = new Date(result.expires_at);
+    const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+    const fiveMinutes = 5 * 60 * 1000;
+
+    // Check if token is valid
+    const isValid = timeUntilExpiry > 0;
+    const needsRefresh = timeUntilExpiry <= fiveMinutes;
+
+    console.log('📊 Auth status:', {
+      isValid,
+      needsRefresh,
+      expiresAt: expiresAt.toISOString(),
+      timeUntilExpiry: Math.round(timeUntilExpiry / 1000) + ' seconds',
+      scope: result.scope,
+      lastRefreshed: new Date(result.created_at).toISOString()
+    });
+
+    return {
+      isAuthenticated: isValid,
+      expiresAt: expiresAt.toISOString(),
+      timeUntilExpiry: Math.round(timeUntilExpiry / 1000),
+      scope: result.scope,
+      lastRefreshed: new Date(result.created_at).toISOString(),
+      error: !isValid ? 'Token has expired' : needsRefresh ? 'Token needs refresh' : undefined
+    };
+  } catch (error) {
+    console.error('❌ Failed to get auth status:', error);
+    return {
+      isAuthenticated: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
   }
-
-  const isValid = new Date(result.expires_at) > new Date();
-  
-  return {
-    isAuthenticated: isValid,
-    expiresAt: result.expires_at,
-    scope: result.scope,
-  };
 } 

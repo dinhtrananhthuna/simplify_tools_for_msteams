@@ -7,6 +7,7 @@ const TEAMS_CONFIG = {
   clientSecret: process.env.TEAMS_CLIENT_SECRET!,
   tenantId: process.env.TEAMS_TENANT_ID!,
   scopes: [
+    'offline_access',
     'https://graph.microsoft.com/Chat.ReadWrite',
     'https://graph.microsoft.com/TeamMember.Read.All',
     'https://graph.microsoft.com/User.Read',
@@ -37,6 +38,9 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   expires_in: number;
   scope: string;
 }> {
+  console.log('🔄 exchangeCodeForTokens: Starting token exchange...');
+  console.log('📝 exchangeCodeForTokens: Code length:', code?.length || 0);
+  
   const response = await fetch(`https://login.microsoftonline.com/${TEAMS_CONFIG.tenantId}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: {
@@ -51,12 +55,27 @@ export async function exchangeCodeForTokens(code: string): Promise<{
     }),
   });
 
+  console.log('📡 exchangeCodeForTokens: Response status:', response.status, response.statusText);
+
   if (!response.ok) {
     const error = await response.text();
+    console.error('❌ exchangeCodeForTokens: Token exchange failed:', error);
     throw new Error(`Token exchange failed: ${error}`);
   }
 
-  return response.json();
+  const result = await response.json();
+  
+  console.log('✅ exchangeCodeForTokens: Response received:', {
+    hasAccessToken: !!result.access_token,
+    hasRefreshToken: !!result.refresh_token,
+    accessTokenLength: result.access_token?.length || 0,
+    refreshTokenLength: result.refresh_token?.length || 0,
+    expiresIn: result.expires_in,
+    scope: result.scope,
+    tokenType: result.token_type
+  });
+
+  return result;
 }
 
 // Refresh access token using refresh token

@@ -1,4 +1,4 @@
-import { checkTeamsAuthStatus } from '../../../../../lib/teams';
+import { getAuthStatus } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,13 +9,19 @@ export async function GET() {
       setTimeout(() => reject(new Error('Status check timeout')), 25000); // 25 second timeout
     });
     
-    const statusPromise = checkTeamsAuthStatus();
+    const statusPromise = getAuthStatus();
     
-    const authStatus = await Promise.race([statusPromise, timeoutPromise]) as Awaited<ReturnType<typeof checkTeamsAuthStatus>>;
+    const authStatus = await Promise.race([statusPromise, timeoutPromise]) as Awaited<ReturnType<typeof getAuthStatus>>;
     
     return Response.json({
       success: true,
       ...authStatus,
+      // Add mock user info if authenticated but no specific user info
+      userInfo: authStatus.isAuthenticated ? {
+        displayName: 'Teams User',
+        email: 'authenticated@teams.microsoft.com',
+        id: 'authenticated-user'
+      } : undefined
     });
   } catch (error) {
     console.error('Failed to check Teams auth status:', error);
