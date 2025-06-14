@@ -108,7 +108,7 @@ async function getPRNotifierConfig(): Promise<PRNotifierConfig | null> {
 async function logWebhookEvent(
   eventType: string,
   payload: any,
-  status: 'pending' | 'success' | 'failed',
+  status: 'success' | 'failed',
   error?: string,
   teamsMessageId?: string
 ) {
@@ -124,7 +124,7 @@ async function logWebhookEvent(
         status,
         error || null,
         teamsMessageId || null,
-        status !== 'pending' ? new Date() : null,
+        new Date(), // Always set processed_at since we only log final status
       ]
     );
   } catch (error) {
@@ -133,6 +133,8 @@ async function logWebhookEvent(
 }
 
 export async function POST(request: NextRequest) {
+  let webhookLogged = false; // Track if webhook has been logged
+  
   try {
     // Parse request body
     const body = await request.text();
@@ -143,6 +145,11 @@ export async function POST(request: NextRequest) {
       webhookData = parsedBody; // Use flexible parsing for now
     } catch (error) {
       console.error('❌ JSON parsing failed:', error);
+      
+      // Log parsing failure
+      await logWebhookEvent('unknown', { error: 'JSON parsing failed' }, 'failed', 'Invalid JSON format');
+      webhookLogged = true;
+      
       return Response.json(
         { success: false, error: 'Invalid JSON format' },
         { status: 400 }
@@ -153,14 +160,16 @@ export async function POST(request: NextRequest) {
     const signatureValid = validateWebhookSignature(request, body);
     if (!signatureValid && process.env.NODE_ENV === 'production') {
       console.error('❌ Invalid webhook signature');
+      
+      // Log signature validation failure
+      await logWebhookEvent(webhookData.eventType || 'unknown', webhookData, 'failed', 'Invalid signature');
+      webhookLogged = true;
+      
       return Response.json(
         { success: false, error: 'Invalid signature' },
         { status: 401 }
       );
     }
-    
-    // Log initial webhook event
-    await logWebhookEvent(webhookData.eventType || 'unknown', webhookData, 'pending');
     
     // Only process pull request events
     if (!webhookData.eventType?.includes('pullrequest') && !webhookData.eventType?.includes('git.pullrequest')) {
@@ -170,6 +179,7 @@ export async function POST(request: NextRequest) {
         'success',
         'Event type not processed'
       );
+      webhookLogged = true;
       
       return Response.json({
         success: true,
@@ -186,6 +196,7 @@ export async function POST(request: NextRequest) {
         'failed',
         'PR Notifier not configured or not active'
       );
+      webhookLogged = true;
       
       return Response.json(
         { success: false, error: 'PR Notifier not configured' },
@@ -202,6 +213,7 @@ export async function POST(request: NextRequest) {
         'failed',
         'Missing required PR fields in webhook payload'
       );
+      webhookLogged = true;
       
       return Response.json(
         { success: false, error: 'Invalid PR data in webhook' },
@@ -278,6 +290,7 @@ export async function POST(request: NextRequest) {
           'failed',
           errorMessage
         );
+        webhookLogged = true;
         
         // Return more specific error messages
         if (errorMessage.includes('timeout')) {
@@ -302,6 +315,7 @@ export async function POST(request: NextRequest) {
       undefined,
       messageId
     );
+    webhookLogged = true;
     
     return Response.json({
       success: true,
@@ -313,6 +327,16 @@ export async function POST(request: NextRequest) {
     console.error('Webhook processing failed:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Log unexpected error if not already logged
+    if (!webhookLogged) {
+      await logWebhookEvent(
+        'unknown',
+        { error: errorMessage },
+        'failed',
+        `Unexpected error: ${errorMessage}`
+      );
+    }
     
     return Response.json(
       { success: false, error: 'Internal server error' },

@@ -10,8 +10,7 @@ export async function GET() {
       SELECT 
         COUNT(*) as total,
         COUNT(CASE WHEN status = 'success' THEN 1 END) as success,
-        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
-        COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
       FROM webhook_logs
     `;
 
@@ -20,7 +19,6 @@ export async function GET() {
     const total = parseInt(stats.total);
     const success = parseInt(stats.success);
     const failed = parseInt(stats.failed);
-    const pending = parseInt(stats.pending);
     
     const successRate = total > 0 ? (success / total) * 100 : 100;
 
@@ -28,7 +26,6 @@ export async function GET() {
       total,
       success,
       failed,
-      pending,
       successRate
     });
 

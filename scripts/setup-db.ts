@@ -68,7 +68,7 @@ const createTables = async () => {
         event_type TEXT NOT NULL,
         payload JSONB,
         processed_at TIMESTAMP,
-        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'success', 'failed')),
+        status TEXT NOT NULL CHECK (status IN ('success', 'failed')),
         error_message TEXT,
         teams_message_id TEXT,
         created_at TIMESTAMP DEFAULT NOW()

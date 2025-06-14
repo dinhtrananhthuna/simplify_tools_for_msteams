@@ -16,7 +16,7 @@ interface WebhookLog {
   tool_id: string;
   webhook_source: string;
   event_type: string;
-  status: 'pending' | 'success' | 'failed';
+  status: 'success' | 'failed';
   error_message?: string;
   payload?: any;
   teams_message_id?: string;
@@ -27,7 +27,6 @@ interface WebhookStats {
   total: number;
   success: number;
   failed: number;
-  pending: number;
   successRate: number;
 }
 
@@ -37,18 +36,17 @@ export default function WebhooksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'success' | 'failed' | 'pending'>('all');
+  const [filter, setFilter] = useState<'all' | 'success' | 'failed'>('all');
   const [stats, setStats] = useState<WebhookStats>({
     total: 0,
     success: 0,
     failed: 0,
-    pending: 0,
     successRate: 0
   });
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   
@@ -153,7 +151,6 @@ export default function WebhooksPage() {
     switch (status) {
       case 'success': return 'text-green-600 bg-green-100';
       case 'failed': return 'text-red-600 bg-red-100';
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -312,7 +309,6 @@ export default function WebhooksPage() {
               <option value="all">All</option>
               <option value="success">Success</option>
               <option value="failed">Failed</option>
-              <option value="pending">Pending</option>
             </select>
           </div>
           <div className="flex-1"></div>
@@ -345,10 +341,10 @@ export default function WebhooksPage() {
               }}
               className="input-field w-20"
             >
-              <option value={5}>5</option>
               <option value={10}>10</option>
               <option value={20}>20</option>
               <option value={50}>50</option>
+              <option value={100}>100</option>
             </select>
           </div>
         </div>
@@ -407,44 +403,58 @@ export default function WebhooksPage() {
               )}
             </div>
           ) : logs.length > 0 ? (
-            <div className={`space-y-3 ${isLoadingEvents ? 'opacity-50' : ''} transition-opacity`}>
+            <div className={`space-y-2 ${isLoadingEvents ? 'opacity-50' : ''} transition-opacity`}>
               {logs.map((log) => (
-                <div key={log.id} className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">
+                <div key={log.id} className="border border-gray-100 rounded-md p-3 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <span className="text-base flex-shrink-0">
                         {log.webhook_source === 'azure-devops' ? '🔷' : '📡'}
                       </span>
-                      <div>
-                        <h3 className="font-medium text-gray-900">
-                          {log.event_type} from {log.webhook_source}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          Tool: {log.tool_id} • {new Date(log.created_at).toLocaleString('vi-VN')}
-                        </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-sm font-medium text-gray-900 truncate">
+                            {log.event_type}
+                          </h3>
+                          <span className="text-xs text-gray-400">from</span>
+                          <span className="text-xs text-gray-600 font-medium">
+                            {log.webhook_source}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 mt-0.5">
+                          <p className="text-xs text-gray-500">
+                            Tool: {log.tool_id}
+                          </p>
+                          <span className="text-xs text-gray-400">•</span>
+                          <p className="text-xs text-gray-500">
+                            {new Date(log.created_at).toLocaleString('vi-VN')}
+                          </p>
+                          {log.teams_message_id && (
+                            <>
+                              <span className="text-xs text-gray-400">•</span>
+                              <p className="text-xs text-green-600 font-medium">
+                                Message ID: {log.teams_message_id.slice(-8)}
+                              </p>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(log.status)}`}>
+                    <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(log.status)}`}>
                         {log.status}
                       </span>
                       {log.teams_message_id && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-green-500 cursor-help">
-                              💬
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Teams message sent</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <div className="flex items-center space-x-1 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+                          <span className="text-green-600 text-xs">💬</span>
+                          <span className="text-xs text-green-700 font-medium">Teams sent</span>
+                        </div>
                       )}
                     </div>
                   </div>
                   
                   {log.error_message && (
-                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
                       <strong>Error:</strong> {log.error_message}
                     </div>
                   )}

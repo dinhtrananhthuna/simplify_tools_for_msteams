@@ -33,7 +33,7 @@ export interface WebhookLog {
   event_type: string;
   payload?: Record<string, any>;
   processed_at?: Date;
-  status: 'pending' | 'success' | 'failed';
+  status: 'success' | 'failed';
   error_message?: string;
   teams_message_id?: string;
   created_at: Date;

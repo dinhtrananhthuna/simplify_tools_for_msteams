@@ -26,7 +26,7 @@ interface WebhookLog {
   tool_id: string;
   webhook_source: string;
   event_type: string;
-  status: 'pending' | 'success' | 'failed';
+  status: 'success' | 'failed';
   error_message?: string;
   created_at: string;
 }
@@ -74,7 +74,6 @@ export default function DashboardPage() {
     switch (status) {
       case 'success': return 'text-green-600 bg-green-100';
       case 'failed': return 'text-red-600 bg-red-100';
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
