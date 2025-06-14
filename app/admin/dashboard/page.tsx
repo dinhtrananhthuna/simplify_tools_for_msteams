@@ -28,6 +28,7 @@ interface WebhookLog {
   event_type: string;
   status: 'success' | 'failed';
   error_message?: string;
+  teams_message_id?: string;
   created_at: string;
 }
 
@@ -243,39 +244,61 @@ export default function DashboardPage() {
             <p className="text-gray-500">No recent activity</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {stats.recentWebhooks.map((webhook) => (
-              <div key={webhook.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <span className="text-xl">
-                    {webhook.webhook_source === 'azure-devops' ? '🔷' : '📡'}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {webhook.event_type} from {webhook.webhook_source}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(webhook.created_at).toLocaleString('vi-VN')}
-                    </p>
+              <div key={webhook.id} className="border border-gray-100 rounded-md p-3 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 min-w-0 flex-1">
+                    <span className="text-base flex-shrink-0">
+                      {webhook.webhook_source === 'azure-devops' ? '🔷' : '📡'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center space-x-2">
+                        <h3 className="text-sm font-medium text-gray-900 truncate">
+                          {webhook.event_type}
+                        </h3>
+                        <span className="text-xs text-gray-400">from</span>
+                        <span className="text-xs text-gray-600 font-medium">
+                          {webhook.webhook_source}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2 mt-0.5">
+                        <p className="text-xs text-gray-500">
+                          Tool: {webhook.tool_id}
+                        </p>
+                        <span className="text-xs text-gray-400">•</span>
+                        <p className="text-xs text-gray-500">
+                          {new Date(webhook.created_at).toLocaleString('vi-VN')}
+                        </p>
+                        {webhook.teams_message_id && (
+                          <>
+                            <span className="text-xs text-gray-400">•</span>
+                            <p className="text-xs text-green-600 font-medium">
+                              Message ID: {webhook.teams_message_id.slice(-8)}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(webhook.status)}`}>
+                      {webhook.status}
+                    </span>
+                    {webhook.teams_message_id && (
+                      <div className="flex items-center space-x-1 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+                        <span className="text-green-600 text-xs">💬</span>
+                        <span className="text-xs text-green-700 font-medium">Teams sent</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(webhook.status)}`}>
-                    {webhook.status}
-                  </span>
-                  {webhook.error_message && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-red-500 cursor-help">
-                          ⚠️
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{webhook.error_message}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
+                
+                {webhook.error_message && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+                    <strong>Error:</strong> {webhook.error_message}
+                  </div>
+                )}
               </div>
             ))}
           </div>

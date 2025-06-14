@@ -47,7 +47,7 @@ export async function GET() {
     const recentWebhooks = await executeQuery<WebhookLog>(`
       SELECT 
         id, tool_id, webhook_source, event_type, status, 
-        error_message, created_at
+        error_message, teams_message_id, created_at
       FROM webhook_logs
       ORDER BY created_at DESC
       LIMIT 10
