@@ -8,6 +8,21 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  PageTemplate,
+  StatsGrid,
+  StatCard,
+  SectionCard,
+  CompactList,
+  CompactListItem,
+  StatusBadge,
+  TeamsBadge,
+  LoadingSpinner,
+  EmptyState,
+  SectionLoading,
+  PageLoadingTemplate
+} from "@/components/templates/page-template";
+import { useDataLoading } from '@/hooks/use-page-loading';
 
 interface Tool {
   id: string;
@@ -30,6 +45,8 @@ interface WebhookLog {
   error_message?: string;
   teams_message_id?: string;
   created_at: string;
+  repository?: string;
+  processing_time_ms?: number;
 }
 
 interface DashboardStats {
@@ -44,306 +61,261 @@ interface DashboardStats {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  const { isLoading, error, withLoading } = useDataLoading();
+
+  const loadDashboardData = async () => {
+    await withLoading(async () => {
+      const response = await fetch('/api/dashboard');
+      if (!response.ok) {
+        throw new Error('Failed to load dashboard data');
+      }
+      const data = await response.json();
+      
+      if (data.success) {
+        setStats(data.stats);
+      } else {
+        throw new Error(data.error || 'Failed to load dashboard data');
+      }
+      
+      setIsInitialLoad(false);
+    });
+  };
 
   useEffect(() => {
     loadDashboardData();
   }, []);
 
-  const loadDashboardData = async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/dashboard');
-      if (!response.ok) {
-        throw new Error('Failed to load dashboard data');
-      }
-      
-      const data = await response.json();
-      setStats(data.stats);
-    } catch (error) {
-      console.error('Failed to load dashboard:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
-    } finally {
-      setIsLoading(false);
+  const getWebhookIcon = (eventType: string) => {
+    if (eventType.includes('pull_request') || eventType.includes('pullrequest')) {
+      return '🔀';
     }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'success': return 'text-green-600 bg-green-100';
-      case 'failed': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
+    if (eventType.includes('push')) {
+      return '📤';
     }
+    if (eventType.includes('build')) {
+      return '🔨';
+    }
+    return '📡';
   };
 
-  const getToolStatusColor = (isActive: boolean) => {
-    return isActive 
-      ? 'text-green-600 bg-green-100' 
-      : 'text-gray-600 bg-gray-100';
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('vi-VN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  if (isLoading) {
+  const calculateSuccessRate = (successful: number, total: number) => {
+    if (total === 0) return 0;
+    return Math.round((successful / total) * 100);
+  };
+
+  // Only show loading for data refresh, not initial load
+  if (isLoading && !isInitialLoad) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-teams-purple border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
+      <PageLoadingTemplate 
+        title="📊 Dashboard" 
+        description="Đang tải lại dữ liệu..."
+        text="Refreshing dashboard data..."
+      />
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <div className="text-red-600 mb-4">❌ Error loading dashboard</div>
-        <p className="text-gray-600 mb-4">{error}</p>
-        <button
-          onClick={loadDashboardData}
-          className="btn-primary"
-        >
-          🔄 Retry
-        </button>
-      </div>
+      <PageTemplate title="📊 Dashboard" description="Overview of your MS Teams Tools Suite">
+        <div className="text-center py-12">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Dashboard</h3>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button
+            onClick={loadDashboardData}
+            className="btn-primary"
+          >
+            Try Again
+          </button>
+        </div>
+      </PageTemplate>
     );
   }
 
-  if (!stats) {
+  // Show empty state while initial loading
+  if (isInitialLoad || !stats) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-600">No data available</p>
-      </div>
+      <PageTemplate title="📊 Dashboard" description="Overview of your MS Teams Tools Suite">
+        <div className="animate-pulse">
+          <StatsGrid>
+            {[1,2,3,4].map(i => (
+              <div key={i} className="card-standard">
+                <div className="h-20 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </StatsGrid>
+        </div>
+      </PageTemplate>
     );
   }
+
+  const successRate = calculateSuccessRate(stats.successfulWebhooks, stats.totalWebhooks);
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">📊 Dashboard</h1>
-        <p className="text-gray-600">
-          Overview của MS Teams Tools Suite và activity logs
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Tools</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalTools}</p>
-            </div>
-            <div className="text-3xl">🛠️</div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Active Tools</p>
-              <p className="text-2xl font-bold text-green-600">{stats.activeTools}</p>
-            </div>
-            <div className="text-3xl">✅</div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Webhooks</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalWebhooks}</p>
-            </div>
-            <div className="text-3xl">📡</div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Success Rate</p>
-              <p className="text-2xl font-bold text-teams-purple">
-                {stats.totalWebhooks > 0 
-                  ? Math.round((stats.successfulWebhooks / stats.totalWebhooks) * 100)
-                  : 0}%
-              </p>
-            </div>
-            <div className="text-3xl">📈</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tools Overview */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium text-gray-900">🛠️ Tools Overview</h2>
-          <Link
-            href="/admin/tools"
-            className="text-teams-purple hover:text-teams-purple-dark text-sm"
+      <PageTemplate 
+        title="📊 Dashboard" 
+        description="Overview of your MS Teams Tools Suite"
+        actions={
+          <button
+            onClick={loadDashboardData}
+            className="text-link text-sm"
+            disabled={isLoading}
           >
-            View all →
-          </Link>
-        </div>
+            🔄 Refresh Data
+          </button>
+        }
+      >
+        {/* Stats Grid */}
+        <StatsGrid>
+          <StatCard
+            label="Total Tools"
+            value={stats.totalTools}
+            icon="🔧"
+          />
+          <StatCard
+            label="Active Tools"
+            value={stats.activeTools}
+            icon="✅"
+            color="success"
+          />
+          <StatCard
+            label="Total Webhooks"
+            value={stats.totalWebhooks}
+            icon="📡"
+          />
+          <StatCard
+            label="Success Rate"
+            value={`${successRate}%`}
+            icon="📊"
+            color={successRate > 80 ? 'success' : successRate > 50 ? 'warning' : 'error'}
+          />
+        </StatsGrid>
 
-        {stats.tools.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">No tools configured yet</p>
+        {/* Tools Overview - Full Width */}
+        <SectionCard 
+          title="🔧 Tools Overview"
+          actions={
+            <Link href="/admin/tools" className="text-link text-sm">
+              View All →
+            </Link>
+          }
+        >
+          {stats.tools.length === 0 ? (
+            <EmptyState
+              icon="🔧"
+              title="No tools configured"
+              description="Get started by configuring your first tool."
+              action={
+                <Link href="/admin/tools" className="btn-primary">
+                  Configure Tools
+                </Link>
+              }
+            />
+          ) : (
+            <CompactList>
+              {stats.tools.map((tool) => (
+                <CompactListItem
+                  key={tool.id}
+                  icon={tool.icon}
+                  title={tool.name}
+                  subtitle={tool.description}
+                  meta={`Category: ${tool.category} • Created: ${formatDate(tool.created_at)}`}
+                  status={
+                    <StatusBadge type={tool.is_active ? 'success' : 'warning'}>
+                      {tool.is_active ? 'Active' : 'Inactive'}
+                    </StatusBadge>
+                  }
+                />
+              ))}
+            </CompactList>
+          )}
+        </SectionCard>
+
+        {/* Recent Webhooks - Full Width */}
+        <SectionCard 
+          title="📡 Recent Webhooks"
+          actions={
+            <Link href="/admin/webhooks" className="text-link text-sm">
+              View All →
+            </Link>
+          }
+        >
+          {stats.recentWebhooks.length === 0 ? (
+            <EmptyState
+              icon="📭"
+              title="No recent webhooks"
+              description="Webhook events will appear here once received."
+            />
+          ) : (
+            <CompactList>
+              {stats.recentWebhooks.map((webhook) => (
+                <CompactListItem
+                  key={webhook.id}
+                  icon={getWebhookIcon(webhook.event_type)}
+                  title={webhook.event_type}
+                  subtitle={webhook.webhook_source}
+                  meta={`Tool: ${webhook.tool_id} • ${formatDate(webhook.created_at)}`}
+                  status={
+                    <div className="flex items-center space-x-2">
+                      <StatusBadge type={webhook.status === 'success' ? 'success' : 'failed'}>
+                        {webhook.status}
+                      </StatusBadge>
+                      {webhook.teams_message_id && (
+                        <TeamsBadge messageId={webhook.teams_message_id} />
+                      )}
+                    </div>
+                  }
+                  error={webhook.error_message}
+                />
+              ))}
+            </CompactList>
+          )}
+        </SectionCard>
+
+        {/* Quick Actions */}
+        <SectionCard title="⚡ Quick Actions">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link
-              href="/admin/tools"
-              className="btn-primary"
+              href="/admin/auth"
+              className="card-compact text-center hover:shadow-md transition-shadow"
             >
-              🚀 Set up your first tool
+              <div className="text-3xl mb-2">🔐</div>
+              <h3 className="text-card-title mb-1">Teams Auth</h3>
+              <p className="text-xs text-gray-500">Configure Microsoft Teams authentication</p>
+            </Link>
+            
+            <Link
+              href="/admin/tools/pr-notifier"
+              className="card-compact text-center hover:shadow-md transition-shadow"
+            >
+              <div className="text-3xl mb-2">📢</div>
+              <h3 className="text-card-title mb-1">PR Notifier</h3>
+              <p className="text-xs text-gray-500">Set up pull request notifications</p>
+            </Link>
+            
+            <Link
+              href="/admin/test-api"
+              className="card-compact text-center hover:shadow-md transition-shadow"
+            >
+              <div className="text-3xl mb-2">🧪</div>
+              <h3 className="text-card-title mb-1">Test API</h3>
+              <p className="text-xs text-gray-500">Test your Teams integration</p>
             </Link>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {stats.tools.map((tool) => (
-              <div key={tool.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{tool.icon}</span>
-                  <div>
-                    <h3 className="font-medium text-gray-900">{tool.name}</h3>
-                    <p className="text-sm text-gray-600">{tool.description}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getToolStatusColor(tool.is_active)}`}>
-                    {tool.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                  <Link
-                    href={`/admin/tools/${tool.id}`}
-                    className="text-teams-purple hover:text-teams-purple-dark text-sm"
-                  >
-                    Configure →
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Recent Activity */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-medium text-gray-900">📋 Recent Activity</h2>
-          <Link
-            href="/admin/webhooks"
-            className="text-teams-purple hover:text-teams-purple-dark text-sm"
-          >
-            View all →
-          </Link>
-        </div>
-
-        {stats.recentWebhooks.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500">No recent activity</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {stats.recentWebhooks.map((webhook) => (
-              <div key={webhook.id} className="border border-gray-100 rounded-md p-3 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 min-w-0 flex-1">
-                    <span className="text-base flex-shrink-0">
-                      {webhook.webhook_source === 'azure-devops' ? '🔷' : '📡'}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center space-x-2">
-                        <h3 className="text-sm font-medium text-gray-900 truncate">
-                          {webhook.event_type}
-                        </h3>
-                        <span className="text-xs text-gray-400">from</span>
-                        <span className="text-xs text-gray-600 font-medium">
-                          {webhook.webhook_source}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2 mt-0.5">
-                        <p className="text-xs text-gray-500">
-                          Tool: {webhook.tool_id}
-                        </p>
-                        <span className="text-xs text-gray-400">•</span>
-                        <p className="text-xs text-gray-500">
-                          {new Date(webhook.created_at).toLocaleString('vi-VN')}
-                        </p>
-                        {webhook.teams_message_id && (
-                          <>
-                            <span className="text-xs text-gray-400">•</span>
-                            <p className="text-xs text-green-600 font-medium">
-                              Message ID: {webhook.teams_message_id.slice(-8)}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(webhook.status)}`}>
-                      {webhook.status}
-                    </span>
-                    {webhook.teams_message_id && (
-                      <div className="flex items-center space-x-1 bg-green-50 border border-green-200 rounded px-2 py-0.5">
-                        <span className="text-green-600 text-xs">💬</span>
-                        <span className="text-xs text-green-700 font-medium">Teams sent</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {webhook.error_message && (
-                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
-                    <strong>Error:</strong> {webhook.error_message}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">⚡ Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link
-            href="/admin/tools/pr-notifier"
-            className="p-4 border border-gray-200 rounded-lg hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5 transition-colors"
-          >
-            <div className="text-center">
-              <div className="text-2xl mb-2">🔔</div>
-              <h3 className="font-medium text-gray-900">Set up PR Notifier</h3>
-              <p className="text-sm text-gray-600">Configure Azure DevOps integration</p>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/auth"
-            className="p-4 border border-gray-200 rounded-lg hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5 transition-colors"
-          >
-            <div className="text-center">
-              <div className="text-2xl mb-2">🔐</div>
-              <h3 className="font-medium text-gray-900">Connect Teams</h3>
-              <p className="text-sm text-gray-600">Authenticate with Microsoft Teams</p>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/logs"
-            className="p-4 border border-gray-200 rounded-lg hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5 transition-colors"
-          >
-            <div className="text-center">
-              <div className="text-2xl mb-2">📊</div>
-              <h3 className="font-medium text-gray-900">View Logs</h3>
-              <p className="text-sm text-gray-600">Monitor webhook activity</p>
-            </div>
-          </Link>
-        </div>
-      </div>
-    </div>
+        </SectionCard>
+      </PageTemplate>
     </TooltipProvider>
   );
 } 

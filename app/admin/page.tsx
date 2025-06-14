@@ -1,127 +1,167 @@
 import Link from 'next/link';
+import {
+  PageTemplate,
+  StatsGrid,
+  StatCard,
+  SectionCard
+} from "@/components/templates/page-template";
 
 export default function AdminDashboard() {
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">📊 Dashboard</h1>
-        <p className="text-gray-600 mt-2">
-          Quản lý MS Teams Tools Suite - Không cần authentication
-        </p>
-      </div>
-
+    <PageTemplate 
+      title="📊 Admin Dashboard" 
+      description="Quản lý MS Teams Tools Suite - Không cần authentication"
+    >
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <span className="text-2xl">🔧</span>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-lg font-medium text-gray-900">Tools</h3>
-              <p className="text-sm text-gray-600">Đã cài đặt: 1</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <span className="text-2xl">📡</span>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-lg font-medium text-gray-900">Webhooks</h3>
-              <p className="text-sm text-gray-600">Đang hoạt động</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <span className="text-2xl">🚀</span>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-lg font-medium text-gray-900">Status</h3>
-              <p className="text-sm text-green-600">Sẵn sàng</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <StatsGrid>
+        <StatCard
+          label="Tools Installed"
+          value="1"
+          icon="🔧"
+        />
+        <StatCard
+          label="Webhook Status"
+          value="Active"
+          icon="📡"
+          color="success"
+        />
+        <StatCard
+          label="System Status"
+          value="Ready"
+          icon="🚀"
+          color="success"
+        />
+        <StatCard
+          label="Auth Status"
+          value="Optional"
+          icon="🔐"
+          color="warning"
+        />
+      </StatsGrid>
 
       {/* Quick Actions */}
-      <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">🎯 Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <SectionCard title="⚡ Quick Actions">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
-            href="/admin/tools/pr-notifier"
-            className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
+            href="/admin/dashboard"
+            className="card-compact text-center hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5"
           >
-            <div className="text-center">
-              <span className="text-3xl mb-2 block">🔔</span>
-              <h3 className="font-medium text-gray-900">PR Notifier</h3>
-              <p className="text-sm text-gray-600 mt-1">Cấu hình thông báo</p>
-            </div>
+            <div className="text-3xl mb-3">📊</div>
+            <h3 className="text-card-title mb-2">View Dashboard</h3>
+            <p className="text-meta">Detailed analytics and recent activity</p>
           </Link>
 
           <Link
-            href="/admin/test-api"
-            className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors"
+            href="/admin/tools/pr-notifier"
+            className="card-compact text-center hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5"
           >
-            <div className="text-center">
-              <span className="text-3xl mb-2 block">🧪</span>
-              <h3 className="font-medium text-gray-900">Test API</h3>
-              <p className="text-sm text-gray-600 mt-1">Kiểm tra kết nối</p>
-            </div>
+            <div className="text-3xl mb-3">🔔</div>
+            <h3 className="text-card-title mb-2">Configure PR Notifier</h3>
+            <p className="text-meta">Set up Azure DevOps integration</p>
+          </Link>
+
+          <Link
+            href="/admin/auth"
+            className="card-compact text-center hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5"
+          >
+            <div className="text-3xl mb-3">🔐</div>
+            <h3 className="text-card-title mb-2">Teams Authentication</h3>
+            <p className="text-meta">Connect to Microsoft Teams</p>
           </Link>
 
           <Link
             href="/admin/webhooks"
-            className="p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors"
+            className="card-compact text-center hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5"
           >
-            <div className="text-center">
-              <span className="text-3xl mb-2 block">📡</span>
-              <h3 className="font-medium text-gray-900">Webhooks</h3>
-              <p className="text-sm text-gray-600 mt-1">Quản lý webhook</p>
-            </div>
+            <div className="text-3xl mb-3">📡</div>
+            <h3 className="text-card-title mb-2">Webhook Logs</h3>
+            <p className="text-meta">Monitor webhook activity</p>
           </Link>
 
           <Link
             href="/admin/settings"
-            className="p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors"
+            className="card-compact text-center hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5"
           >
-            <div className="text-center">
-              <span className="text-3xl mb-2 block">⚙️</span>
-              <h3 className="font-medium text-gray-900">Settings</h3>
-              <p className="text-sm text-gray-600 mt-1">Cài đặt hệ thống</p>
-            </div>
+            <div className="text-3xl mb-3">⚙️</div>
+            <h3 className="text-card-title mb-2">System Settings</h3>
+            <p className="text-meta">Configure system preferences</p>
+          </Link>
+
+          <Link
+            href="/admin/test-api"
+            className="card-compact text-center hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5"
+          >
+            <div className="text-3xl mb-3">🧪</div>
+            <h3 className="text-card-title mb-2">Test API</h3>
+            <p className="text-meta">Test system functionality</p>
           </Link>
         </div>
-      </div>
+      </SectionCard>
 
-      {/* System Info */}
-      <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">💡 System Info</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="font-medium text-gray-700">Environment:</span>
-            <span className="ml-2 text-gray-600">Development</span>
+      {/* System Information */}
+      <SectionCard title="ℹ️ System Information">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-gray-700">🔧 Available Tools</h4>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded">
+                <div className="flex items-center space-x-2">
+                  <span>🔔</span>
+                  <span className="text-sm font-medium">PR Notifier</span>
+                </div>
+                <span className="text-xs text-green-600 font-medium">Available</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <span className="font-medium text-gray-700">Framework:</span>
-            <span className="ml-2 text-gray-600">Next.js 14</span>
-          </div>
-          <div>
-            <span className="font-medium text-gray-700">Database:</span>
-            <span className="ml-2 text-gray-600">Neon PostgreSQL</span>
-          </div>
-          <div>
-            <span className="font-medium text-gray-700">Authentication:</span>
-            <span className="ml-2 text-green-600">Disabled (Development)</span>
+
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-gray-700">📊 System Status</h4>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded">
+                <span className="text-sm">Environment</span>
+                <span className="text-xs font-mono text-gray-600">Development</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded">
+                <span className="text-sm">Version</span>
+                <span className="text-xs font-mono text-gray-600">1.0.0</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded">
+                <span className="text-sm">Last Updated</span>
+                <span className="text-xs text-gray-600">{new Date().toLocaleDateString('vi-VN')}</span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </SectionCard>
+
+      {/* Getting Started */}
+      <SectionCard title="🚀 Getting Started">
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="text-sm font-medium text-blue-800 mb-3">📋 Setup Checklist</h4>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <span className="text-green-600">✅</span>
+              <span className="text-sm text-blue-700">System is running</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-yellow-600">⏳</span>
+              <span className="text-sm text-blue-700">
+                <Link href="/admin/auth" className="text-link">Connect to Microsoft Teams</Link>
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-yellow-600">⏳</span>
+              <span className="text-sm text-blue-700">
+                <Link href="/admin/tools/pr-notifier" className="text-link">Configure PR Notifier tool</Link>
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-yellow-600">⏳</span>
+              <span className="text-sm text-blue-700">Set up Azure DevOps webhook</span>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+    </PageTemplate>
   );
 } 

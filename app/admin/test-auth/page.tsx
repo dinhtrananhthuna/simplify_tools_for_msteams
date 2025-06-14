@@ -1,6 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import {
+  PageTemplate,
+  SectionCard,
+  StatusBadge,
+  LoadingSpinner,
+  ButtonLoading
+} from "@/components/templates/page-template";
 
 export default function TestAuthPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -38,58 +45,79 @@ export default function TestAuthPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">🔍 Test Authentication</h1>
-        <p className="text-gray-600 mt-2">
-          Kiểm tra trạng thái xác thực MS Teams
-        </p>
-      </div>
-
+    <PageTemplate 
+      title="🔍 Test Authentication" 
+      description="Kiểm tra trạng thái xác thực MS Teams"
+    >
       {/* Test Controls */}
-      <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">🧪 Authentication Tests</h2>
+      <SectionCard title="🧪 Authentication Tests">
         <div className="space-y-4">
-          <button
+          <ButtonLoading
+            isLoading={isLoading}
             onClick={testTeamsAuth}
-            disabled={isLoading}
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+            className="w-full btn-primary"
           >
-            {isLoading ? '🔄 Checking...' : '🔍 Check Teams Auth Status'}
-          </button>
+            {isLoading ? 'Checking...' : '🔍 Check Teams Auth Status'}
+          </ButtonLoading>
 
           <button
             onClick={initiateTeamsAuth}
-            className="w-full bg-purple-600 text-white py-3 px-4 rounded-md hover:bg-purple-700 transition-colors"
+            className="w-full btn-secondary"
           >
             🚀 Start Teams Authentication
           </button>
         </div>
-      </div>
+      </SectionCard>
 
       {/* Results */}
       {result && (
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Test Results</h2>
+        <SectionCard title="📊 Test Results">
           <div className={`p-4 rounded-lg border ${
             result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
           }`}>
-            <pre className="text-sm overflow-auto whitespace-pre-wrap">
+            <div className="flex items-center space-x-2 mb-3">
+              <StatusBadge type={result.success ? 'success' : 'failed'}>
+                {result.success ? 'Success' : 'Failed'}
+              </StatusBadge>
+              {result.isAuthenticated && (
+                <StatusBadge type="info">Authenticated</StatusBadge>
+              )}
+            </div>
+            <pre className="text-sm overflow-auto whitespace-pre-wrap text-gray-700">
               {JSON.stringify(result, null, 2)}
             </pre>
           </div>
-        </div>
+        </SectionCard>
       )}
 
       {/* Instructions */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-blue-900 mb-4">📋 Instructions</h2>
-        <div className="text-blue-800 space-y-2 text-sm">
-          <p><strong>1. Check Teams Auth Status:</strong> Kiểm tra xem đã có token Teams hợp lệ chưa</p>
-          <p><strong>2. Start Teams Authentication:</strong> Bắt đầu quá trình OAuth với Microsoft Teams</p>
-          <p><strong>3. Test API:</strong> Sau khi authentication thành công, test các API endpoints</p>
+      <SectionCard title="📋 Instructions">
+        <div className="space-y-3">
+          <div className="flex items-start space-x-3">
+            <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">1</span>
+            <div>
+              <h4 className="text-card-title">Check Teams Auth Status</h4>
+              <p className="text-sm text-gray-600">Kiểm tra xem đã có token Teams hợp lệ chưa</p>
+            </div>
+          </div>
+          
+          <div className="flex items-start space-x-3">
+            <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">2</span>
+            <div>
+              <h4 className="text-card-title">Start Teams Authentication</h4>
+              <p className="text-sm text-gray-600">Bắt đầu quá trình OAuth với Microsoft Teams</p>
+            </div>
+          </div>
+          
+          <div className="flex items-start space-x-3">
+            <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">3</span>
+            <div>
+              <h4 className="text-card-title">Test API</h4>
+              <p className="text-sm text-gray-600">Sau khi authentication thành công, test các API endpoints</p>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </SectionCard>
+    </PageTemplate>
   );
 } 

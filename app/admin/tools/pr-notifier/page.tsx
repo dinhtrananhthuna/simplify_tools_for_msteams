@@ -9,6 +9,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  PageTemplate,
+  SectionCard,
+  StatusBadge,
+  LoadingSpinner,
+  ButtonLoading,
+  PageLoadingTemplate
+} from "@/components/templates/page-template";
 
 interface TeamsChat {
   id: string;
@@ -209,138 +217,111 @@ export default function PRNotifierPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-teams-purple border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading configuration...</p>
-        </div>
-      </div>
+      <PageLoadingTemplate 
+        title="🔔 Pull Request Notifier" 
+        description="Đang tải cấu hình..."
+        text="Loading configuration..."
+      />
     );
   }
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center space-x-2 mb-2">
-            <Link
-              href="/admin/tools"
-              className="text-gray-400 hover:text-gray-600"
-            >
-              Tools
-            </Link>
-            <span className="text-gray-400">/</span>
-            <span className="text-gray-900">PR Notifier</span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            <span className="text-2xl mr-3">🔔</span>
-            Pull Request Notifier
-          </h1>
-          <p className="text-gray-600">
-            Tự động thông báo team về pull requests mới từ Azure DevOps
-          </p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center">
-            <label className="text-sm text-gray-700 mr-3">Active:</label>
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="w-4 h-4 text-teams-purple border-gray-300 rounded focus:ring-teams-purple"
-            />
-          </div>
-          <button
-            onClick={handleSaveConfig}
-            disabled={isSaving}
-            className="btn-primary"
-          >
-            {isSaving ? '💾 Saving...' : '💾 Save Configuration'}
-          </button>
-        </div>
-      </div>
-
-      {/* Teams Authentication */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          📱 Microsoft Teams Authentication
-        </h2>
-        
-        {authStatus.isAuthenticated ? (
-          <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-            <div>
-              <div className="flex items-center">
-                <span className="w-3 h-3 bg-green-500 rounded-full mr-3"></span>
-                <span className="font-medium text-green-900">Connected to Teams</span>
-              </div>
-              {authStatus.userInfo && (
-                <div className="text-sm text-green-700 mt-1">
-                  Logged in as: {authStatus.userInfo.displayName} ({authStatus.userInfo.email})
-                </div>
-              )}
+      <PageTemplate 
+        title="🔔 Pull Request Notifier" 
+        description="Tự động thông báo team về pull requests mới từ Azure DevOps"
+        actions={
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <label className="text-sm text-gray-700">Active:</label>
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="w-4 h-4 text-teams-purple border-gray-300 rounded focus:ring-teams-purple"
+              />
             </div>
-            <button
-              onClick={handleTeamsAuth}
-              className="btn-secondary text-sm"
+            <ButtonLoading
+              isLoading={isSaving}
+              onClick={handleSaveConfig}
+              className="btn-primary"
             >
-              🔄 Reconnect
-            </button>
+              {isSaving ? 'Saving...' : '💾 Save Configuration'}
+            </ButtonLoading>
           </div>
-        ) : (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center justify-between">
+        }
+      >
+        {/* Teams Authentication */}
+        <SectionCard title="📱 Microsoft Teams Authentication">
+          {authStatus.isAuthenticated ? (
+            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
               <div>
-                <div className="flex items-center">
-                  <span className="w-3 h-3 bg-yellow-500 rounded-full mr-3"></span>
-                  <span className="font-medium text-yellow-900">Teams authentication required</span>
+                <div className="flex items-center space-x-2">
+                  <StatusBadge type="success">Connected</StatusBadge>
+                  <span className="text-card-title text-green-900">Connected to Teams</span>
                 </div>
-                <p className="text-sm text-yellow-700 mt-1">
-                  Connect to Microsoft Teams to send notifications
-                </p>
+                {authStatus.userInfo && (
+                  <div className="text-sm text-green-700 mt-1">
+                    Logged in as: {authStatus.userInfo.displayName} ({authStatus.userInfo.email})
+                  </div>
+                )}
               </div>
               <button
                 onClick={handleTeamsAuth}
-                className="btn-primary"
+                className="btn-secondary text-sm"
               >
-                🔗 Connect to Teams
+                🔄 Reconnect
               </button>
             </div>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <StatusBadge type="warning">Required</StatusBadge>
+                    <span className="text-card-title text-yellow-900">Teams authentication required</span>
+                  </div>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Connect to Microsoft Teams to send notifications
+                  </p>
+                </div>
+                <button
+                  onClick={handleTeamsAuth}
+                  className="btn-primary"
+                >
+                  🔗 Connect to Teams
+                </button>
+              </div>
+            </div>
+          )}
+        </SectionCard>
 
-      {/* Configuration Form */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          ⚙️ Configuration
-        </h2>
+        {/* Configuration Form */}
+        <SectionCard title="⚙️ Configuration">
+          <div className="space-y-6">
+            {/* Azure DevOps URL */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Azure DevOps Organization URL
+              </label>
+              <input
+                type="url"
+                value={config.azureDevOpsUrl}
+                onChange={(e) => setConfig(prev => ({ ...prev, azureDevOpsUrl: e.target.value }))}
+                className="input-field"
+                placeholder="https://dev.azure.com/your-org"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                URL của Azure DevOps organization (dùng để validate webhooks)
+              </p>
+            </div>
 
-        <div className="space-y-6">
-          {/* Azure DevOps URL */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Azure DevOps Organization URL
-            </label>
-            <input
-              type="url"
-              value={config.azureDevOpsUrl}
-              onChange={(e) => setConfig(prev => ({ ...prev, azureDevOpsUrl: e.target.value }))}
-              className="input-field"
-              placeholder="https://dev.azure.com/your-org"
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              URL của Azure DevOps organization (dùng để validate webhooks)
-            </p>
-          </div>
-
-          {/* Target Teams Chat */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Target Teams Chat
-            </label>
-                          {authStatus.isAuthenticated ? (
+            {/* Target Teams Chat */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Target Teams Chat
+              </label>
+              {authStatus.isAuthenticated ? (
                 chatsLoading ? (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600">
                     🔄 Loading Teams chats...
@@ -441,108 +422,104 @@ export default function PRNotifierPage() {
                   No Teams chats found. Make sure you have access to Teams chats.
                 </div>
               )
-            ) : (
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
-                Connect to Teams first to see available chats
-              </div>
-            )}
-          </div>
-
-          {/* Mentions */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-medium text-gray-700">
-                @Mentions
-              </label>
-              <input
-                type="checkbox"
-                checked={config.enableMentions}
-                onChange={(e) => setConfig(prev => ({ ...prev, enableMentions: e.target.checked }))}
-                className="w-4 h-4 text-teams-purple border-gray-300 rounded focus:ring-teams-purple"
-              />
+              ) : (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                  Connect to Teams first to see available chats
+                </div>
+              )}
             </div>
-            
-            {config.enableMentions && (
-              <div className="space-y-2">
-                {config.mentionUsers.map((user, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={user}
-                      onChange={(e) => updateMentionUser(index, e.target.value)}
-                      className="input-field flex-1"
-                      placeholder="username (without @)"
-                    />
-                    <button
-                      onClick={() => removeMentionUser(index)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      ❌
-                    </button>
-                  </div>
-                ))}
-                <button
-                  onClick={addMentionUser}
-                  className="btn-secondary text-sm"
-                >
-                  ➕ Add User
-                </button>
-              </div>
-            )}
-            <p className="text-sm text-gray-500 mt-1">
-              Usernames sẽ được mention trong notification message
-            </p>
-          </div>
-        </div>
-      </div>
 
-      {/* Webhook Setup */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          📡 Azure DevOps Webhook Setup
-        </h2>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Webhook URL
-            </label>
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={`${window.location.origin}/api/webhooks/azure-devops`}
-                readOnly
-                className="input-field flex-1 bg-gray-50"
-              />
-              <Tooltip>
-                <TooltipTrigger asChild>
+            {/* Mentions */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  @Mentions
+                </label>
+                <input
+                  type="checkbox"
+                  checked={config.enableMentions}
+                  onChange={(e) => setConfig(prev => ({ ...prev, enableMentions: e.target.checked }))}
+                  className="w-4 h-4 text-teams-purple border-gray-300 rounded focus:ring-teams-purple"
+                />
+              </div>
+              
+              {config.enableMentions && (
+                <div className="space-y-2">
+                  {config.mentionUsers.map((user, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={user}
+                        onChange={(e) => updateMentionUser(index, e.target.value)}
+                        className="input-field flex-1"
+                        placeholder="username (without @)"
+                      />
+                      <button
+                        onClick={() => removeMentionUser(index)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        ❌
+                      </button>
+                    </div>
+                  ))}
                   <button
-                    onClick={handleCopyWebhookUrl}
-                    className="btn-secondary px-3 hover:bg-gray-100 transition-colors"
+                    onClick={addMentionUser}
+                    className="btn-secondary text-sm"
                   >
-                    📋
+                    ➕ Add User
                   </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Copy webhook URL</p>
-                </TooltipContent>
-              </Tooltip>
+                </div>
+              )}
+              <p className="text-sm text-gray-500 mt-1">
+                Usernames sẽ được mention trong notification message
+              </p>
             </div>
           </div>
+        </SectionCard>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-medium text-blue-900 mb-2">Setup Instructions:</h3>
-            <ol className="list-decimal list-inside text-sm text-blue-800 space-y-1">
-              <li>Go to Azure DevOps → Project Settings → Service Hooks</li>
-              <li>Create a new subscription for "Pull request created"</li>
-              <li>Set URL to the webhook URL above</li>
-              <li>Add header: <code>x-webhook-signature: your-secret</code></li>
-              <li>Test the webhook to ensure it works</li>
-            </ol>
+        {/* Webhook Setup */}
+        <SectionCard title="📡 Azure DevOps Webhook Setup">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Webhook URL
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={`${window.location.origin}/api/webhooks/azure-devops`}
+                  readOnly
+                  className="input-field flex-1 bg-gray-50"
+                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleCopyWebhookUrl}
+                      className="btn-secondary px-3 hover:bg-gray-100 transition-colors"
+                    >
+                      📋
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Copy webhook URL</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-medium text-blue-900 mb-2">Setup Instructions:</h3>
+              <ol className="list-decimal list-inside text-sm text-blue-800 space-y-1">
+                <li>Go to Azure DevOps → Project Settings → Service Hooks</li>
+                <li>Create a new subscription for "Pull request created"</li>
+                <li>Set URL to the webhook URL above</li>
+                <li>Add header: <code>x-webhook-signature: your-secret</code></li>
+                <li>Test the webhook to ensure it works</li>
+              </ol>
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </SectionCard>
+      </PageTemplate>
     </TooltipProvider>
   );
 } 

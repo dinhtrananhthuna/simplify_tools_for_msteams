@@ -69,7 +69,126 @@
 }
 
 @layer components {
-  /* Custom Teams components */
+  /* === DESIGN SYSTEM COMPONENTS === */
+  
+  /* Layout */
+  .page-layout {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6;
+  }
+  
+  /* Loading States */
+  .loading-screen {
+    @apply min-h-screen bg-gray-50 flex items-center justify-center;
+  }
+  
+  .loading-content {
+    @apply text-center max-w-md mx-auto px-4;
+  }
+  
+  .loading-spinner {
+    @apply border-teams-purple border-t-transparent rounded-full animate-spin;
+  }
+  
+  .loading-spinner-sm {
+    @apply w-4 h-4 border-2;
+  }
+  
+  .loading-spinner-md {
+    @apply w-6 h-6 border-2;
+  }
+  
+  .loading-spinner-lg {
+    @apply w-8 h-8 border-4;
+  }
+  
+  .loading-spinner-xl {
+    @apply w-12 h-12 border-4;
+  }
+  
+  .page-header {
+    @apply mb-6;
+  }
+  
+  .page-title {
+    @apply text-2xl font-bold text-gray-900;
+  }
+  
+  .page-description {
+    @apply text-gray-600 mt-1;
+  }
+  
+  /* Cards */
+  .card-standard {
+    @apply bg-white border border-gray-200 rounded-lg p-6 shadow-sm;
+  }
+  
+  .card-compact {
+    @apply border border-gray-100 rounded-md p-3 hover:bg-gray-50 transition-colors;
+  }
+  
+  /* Lists */
+  .list-compact {
+    @apply space-y-2;
+  }
+  
+  .list-comfortable {
+    @apply space-y-4;
+  }
+  
+  .list-spacious {
+    @apply space-y-6;
+  }
+  
+  /* Status */
+  .status-success {
+    @apply bg-green-100 text-green-600;
+  }
+  
+  .status-failed {
+    @apply bg-red-100 text-red-600;
+  }
+  
+  .status-warning {
+    @apply bg-yellow-100 text-yellow-600;
+  }
+  
+  .teams-badge {
+    @apply flex items-center space-x-1 bg-green-50 border border-green-200 rounded px-2 py-0.5;
+  }
+  
+  /* Typography */
+  .text-section-title {
+    @apply text-lg font-medium text-gray-900;
+  }
+  
+  .text-card-title {
+    @apply text-sm font-medium text-gray-900;
+  }
+  
+  .text-meta {
+    @apply text-xs text-gray-500;
+  }
+  
+  .text-link {
+    @apply text-teams-purple hover:text-teams-purple/80 transition-colors;
+  }
+  
+  /* Buttons */
+  .btn-primary {
+    @apply bg-teams-purple hover:bg-teams-purple/90 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  /* Form Elements */
+  .input-field {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teams-purple focus:border-transparent;
+  }
+  
+  /* === LEGACY COMPONENTS (for backward compatibility) === */
+  
   .tool-card {
     @apply bg-card border border-border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow;
   }
@@ -112,10 +231,6 @@
   
   .input-field {
     @apply w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-  
-  .page-header {
-    @apply border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60;
   }
   
   .sidebar {

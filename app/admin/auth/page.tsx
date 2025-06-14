@@ -1,6 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import {
+  PageTemplate,
+  SectionCard,
+  StatusBadge,
+  LoadingSpinner,
+  EmptyState,
+  PageLoadingTemplate
+} from "@/components/templates/page-template";
 
 interface AuthStatus {
   isAuthenticated: boolean;
@@ -16,8 +24,9 @@ interface AuthStatus {
 }
 
 export default function AuthPage() {
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ isAuthenticated: false });
-  const [isLoading, setIsLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [oauthMessage, setOauthMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -37,15 +46,16 @@ export default function AuthPage() {
       window.history.replaceState({}, document.title, '/admin/auth');
     }
     
-    checkAuthStatus();
+    loadAuthStatus();
   }, []);
 
-  const checkAuthStatus = async () => {
+  const loadAuthStatus = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/auth/teams/status');
       const data = await response.json();
       setAuthStatus(data);
+      setIsInitialLoad(false);
     } catch (error) {
       console.error('Failed to check auth status:', error);
     } finally {
@@ -53,11 +63,9 @@ export default function AuthPage() {
     }
   };
 
-  const handleTeamsAuth = () => {
+  const handleLogin = () => {
     window.location.href = '/api/auth/teams';
   };
-
-
 
   const handleForceRefresh = async () => {
     setIsRefreshing(true);
@@ -65,230 +73,186 @@ export default function AuthPage() {
       const response = await fetch('/api/auth/teams/refresh', {
         method: 'POST'
       });
-      const data = await response.json();
       
-      if (data.success) {
-        const message = data.forceRefresh 
-          ? `Token force refreshed successfully! 🚀\n📅 New expiry: ${data.newTokenInfo?.newExpiresAt ? new Date(data.newTokenInfo.newExpiresAt).toLocaleString('vi-VN') : 'N/A'}\n⏱️ Duration: ${data.newTokenInfo?.expiresIn ? Math.round(data.newTokenInfo.expiresIn / 60) + ' minutes' : 'N/A'}`
-          : data.tokenRefreshed 
-            ? 'Token refreshed successfully! 🔄' 
-            : 'Token was already valid ✅';
-            
-        setOauthMessage({ 
-          type: 'success', 
-          message 
-        });
-        
-        // Refresh auth status
-        await checkAuthStatus();
+      if (response.ok) {
+        // Reload auth status after refresh
+        await loadAuthStatus();
       } else {
-        setOauthMessage({ 
-          type: 'error', 
-          message: `Refresh failed: ${data.error}` 
-        });
+        console.error('Failed to refresh token');
       }
     } catch (error) {
-      console.error('Failed to refresh token:', error);
-      setOauthMessage({ 
-        type: 'error', 
-        message: 'Failed to refresh token' 
-      });
+      console.error('Error refreshing token:', error);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  if (isLoading) {
+  // Only show loading for refresh, not initial load
+  if (isLoading && !isInitialLoad) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-teams-purple border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication status...</p>
-        </div>
-      </div>
+      <PageLoadingTemplate 
+        title="🔐 Teams Authentication" 
+        description="Đang tải lại trạng thái xác thực..."
+        text="Refreshing authentication status..."
+      />
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">🔐 Authentication Management</h1>
-        <p className="text-gray-600">
-          Quản lý authentication và permissions cho MS Teams integration
-        </p>
-        
-        {/* OAuth Callback Messages */}
-        {oauthMessage && (
-          <div className={`mt-4 p-4 rounded-lg ${
-            oauthMessage.type === 'success' 
-              ? 'bg-green-50 border border-green-200 text-green-800'
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
-            <div className="flex items-center justify-between">
-              <span>{oauthMessage.message}</span>
-              <button 
-                onClick={() => setOauthMessage(null)}
-                className="text-gray-500 hover:text-gray-700"
+    <PageTemplate 
+      title="🔐 Teams Authentication" 
+      description="Kết nối với Microsoft Teams để gửi thông báo"
+    >
+      {/* Authentication Status */}
+      <SectionCard 
+        title="📊 Authentication Status"
+        actions={
+          <button
+            onClick={loadAuthStatus}
+            className="text-link text-sm"
+            disabled={isLoading}
+          >
+            🔄 Refresh Status
+          </button>
+        }
+      >
+        {!authStatus ? (
+          <EmptyState
+            icon="❌"
+            title="Not Authenticated"
+            description="You need to authenticate with Microsoft Teams to send notifications."
+            action={
+              <button onClick={handleLogin} className="btn-primary">
+                🚀 Connect to Microsoft Teams
+              </button>
+            }
+          />
+        ) : authStatus.error ? (
+          <div className="text-center py-8">
+            <div className="text-red-500 text-6xl mb-4">⚠️</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Authentication Error</h3>
+            <p className="text-gray-600 mb-6">{authStatus.error}</p>
+            <button onClick={handleLogin} className="btn-primary">
+              🔄 Re-authenticate
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Status Badge */}
+            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="text-2xl">✅</div>
+                <div>
+                  <h3 className="text-card-title text-green-800">Successfully Authenticated</h3>
+                  <p className="text-meta text-green-600">Connected to Microsoft Teams</p>
+                </div>
+              </div>
+              <StatusBadge type="success">Active</StatusBadge>
+            </div>
+
+            {/* User Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">👤 User Information</h4>
+                <div className="space-y-1">
+                  <p className="text-sm"><strong>Name:</strong> {authStatus.userInfo?.displayName}</p>
+                  <p className="text-sm"><strong>Email:</strong> {authStatus.userInfo?.email}</p>
+                  <p className="text-sm"><strong>ID:</strong> {authStatus.userInfo?.id}</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">⏰ Token Information</h4>
+                <div className="space-y-1">
+                  <p className="text-sm">
+                    <strong>Expires:</strong> {authStatus.expiresAt ? new Date(authStatus.expiresAt).toLocaleString('vi-VN') : 'Unknown'}
+                  </p>
+                  <p className="text-sm">
+                    <strong>Time until expiry:</strong> {
+                      authStatus.timeUntilExpiry 
+                        ? `${Math.round(authStatus.timeUntilExpiry / 60)} minutes`
+                        : 'Unknown'
+                    }
+                  </p>
+                  <p className="text-sm">
+                    <strong>Scope:</strong> {authStatus.scope || 'Default'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center space-x-4 pt-4 border-t border-gray-200">
+              <button
+                onClick={handleForceRefresh}
+                disabled={isRefreshing}
+                className="btn-secondary"
               >
-                ✕
+                {isRefreshing ? (
+                  <div className="flex items-center space-x-2">
+                    <LoadingSpinner size="sm" />
+                    <span>Refreshing...</span>
+                  </div>
+                ) : (
+                  '🔄 Force Refresh Token'
+                )}
+              </button>
+              
+              <button onClick={handleLogin} className="btn-primary">
+                🔄 Re-authenticate
               </button>
             </div>
           </div>
         )}
-      </div>
+      </SectionCard>
 
-
-
-      {/* Teams Authentication */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          💜 Microsoft Teams Authentication
-        </h2>
-        
-        {authStatus.isAuthenticated ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div>
-                <div className="flex items-center">
-                  <span className="w-3 h-3 bg-green-500 rounded-full mr-3"></span>
-                  <span className="font-medium text-green-900">Connected to Teams</span>
-                </div>
-                {authStatus.userInfo && (
-                  <div className="text-sm text-green-700 mt-1">
-                    <p><strong>Name:</strong> {authStatus.userInfo.displayName}</p>
-                    <p><strong>Email:</strong> {authStatus.userInfo.email}</p>
-                    <p><strong>ID:</strong> {authStatus.userInfo.id}</p>
-                  </div>
-                )}
-                {authStatus.expiresAt && (
-                  <div className="text-sm text-green-700 mt-2">
-                    <p><strong>Token expires:</strong> {new Date(authStatus.expiresAt).toLocaleString('vi-VN')}</p>
-                    {authStatus.timeUntilExpiry !== undefined && (
-                      <p><strong>Time remaining:</strong> {
-                        authStatus.timeUntilExpiry > 0 
-                          ? `${Math.round(authStatus.timeUntilExpiry / 60)} minutes (${authStatus.timeUntilExpiry} seconds)`
-                          : `EXPIRED ${Math.abs(Math.round(authStatus.timeUntilExpiry / 60))} minutes ago`
-                      }</p>
-                    )}
-                    <p className="text-xs text-gray-600">
-                      {authStatus.timeUntilExpiry !== undefined && authStatus.timeUntilExpiry <= 300 
-                        ? '⚠️ Auto-refresh sẽ kích hoạt ngay lập tức (token expires soon/expired)'
-                        : '✅ Auto-refresh sẽ kích hoạt khi token còn dưới 5 phút'
-                      }
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={checkAuthStatus}
-                  className="btn-secondary text-sm"
-                  disabled={isLoading}
-                >
-                  🔄 Refresh Status
-                </button>
-                <button
-                  onClick={handleForceRefresh}
-                  className="btn-secondary text-sm"
-                  disabled={isRefreshing}
-                >
-                  {isRefreshing ? '⏳ Refreshing...' : '🔄 Force Refresh Token'}
-                </button>
-                <button
-                  onClick={handleTeamsAuth}
-                  className="btn-secondary text-sm"
-                >
-                  🔄 Reconnect
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-medium text-blue-900 mb-2">Available Permissions:</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>✅ Chat.ReadWrite - Send messages to Teams chats</li>
-                <li>✅ TeamMember.Read.All - Read team member information</li>
-                <li>✅ User.Read - Read user profile</li>
-              </ul>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center">
-                    <span className="w-3 h-3 bg-yellow-500 rounded-full mr-3"></span>
-                    <span className="font-medium text-yellow-900">Teams authentication required</span>
-                  </div>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Connect to Microsoft Teams để enable tools functionality
-                  </p>
-                  {authStatus.error && (
-                    <p className="text-sm text-red-600 mt-1">
-                      Error: {authStatus.error}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={handleTeamsAuth}
-                  className="btn-primary"
-                >
-                  🔗 Connect to Teams
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-medium text-blue-900 mb-2">What permissions will be requested:</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>📝 <strong>Chat.ReadWrite</strong> - Send notifications to Teams chats</li>
-                <li>👥 <strong>TeamMember.Read.All</strong> - List available chats and teams</li>
-                <li>👤 <strong>User.Read</strong> - Get your basic profile information</li>
-              </ul>
-              <p className="text-sm text-blue-600 mt-2">
-                Your data is stored securely và chỉ dùng để send notifications.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Security Settings */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
-          🛡️ Security Settings
-        </h2>
-        
+      {/* Microsoft Teams OAuth */}
+      <SectionCard title="🔗 Microsoft Teams OAuth">
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-            <div>
-              <h3 className="font-medium text-gray-900">Token Encryption</h3>
-              <p className="text-sm text-gray-500">All authentication tokens are encrypted at rest</p>
-            </div>
-            <span className="text-green-500">✅ Enabled</span>
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="text-sm font-medium text-blue-800 mb-2">ℹ️ How it works</h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• Click "Connect to Microsoft Teams" to start OAuth flow</li>
+              <li>• You'll be redirected to Microsoft login page</li>
+              <li>• Grant permissions to send messages to Teams</li>
+              <li>• You'll be redirected back with authentication token</li>
+              <li>• Token will be automatically refreshed when needed</li>
+            </ul>
           </div>
 
-          <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-            <div>
-              <h3 className="font-medium text-gray-900">Webhook Signatures</h3>
-              <p className="text-sm text-gray-500">Webhook requests require valid signatures</p>
+          {!authStatus?.isAuthenticated && (
+            <div className="text-center py-6">
+              <button onClick={handleLogin} className="btn-primary">
+                🚀 Connect to Microsoft Teams
+              </button>
             </div>
-            <span className="text-green-500">✅ Enabled</span>
+          )}
+        </div>
+      </SectionCard>
+
+      {/* Troubleshooting */}
+      <SectionCard title="🔧 Troubleshooting">
+        <div className="space-y-4">
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <h4 className="text-sm font-medium text-yellow-800 mb-2">⚠️ Common Issues</h4>
+            <ul className="text-sm text-yellow-700 space-y-1">
+              <li>• <strong>Token expired:</strong> Use "Force Refresh Token" or re-authenticate</li>
+              <li>• <strong>Permission denied:</strong> Make sure you have proper Teams permissions</li>
+              <li>• <strong>Network issues:</strong> Check your internet connection</li>
+              <li>• <strong>Popup blocked:</strong> Allow popups for this site</li>
+            </ul>
           </div>
 
-
-
-          <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-            <div>
-              <h3 className="font-medium text-gray-900">HTTPS Only</h3>
-              <p className="text-sm text-gray-500">All communications use secure HTTPS protocol</p>
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">🔍 Debug Information</h4>
+            <div className="text-xs font-mono text-gray-600">
+              <p>Environment: {process.env.NODE_ENV}</p>
+              <p>Timestamp: {new Date().toISOString()}</p>
+              <p>User Agent: {typeof navigator !== 'undefined' ? navigator.userAgent.substring(0, 50) + '...' : 'N/A'}</p>
             </div>
-            <span className="text-green-500">✅ Enabled</span>
           </div>
         </div>
-      </div>
-    </div>
+      </SectionCard>
+    </PageTemplate>
   );
 } 
