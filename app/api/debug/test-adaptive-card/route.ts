@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { sendSimpleMessage } from '@/lib/teams-simple';
+import { sendSimpleMessage } from '@/lib/teams';
 
 export async function POST(request: NextRequest) {
   try {

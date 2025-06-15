@@ -2,7 +2,7 @@ import { getAuthStatus, getRefreshToken, saveAuthToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// Direct refresh token function (copy từ auth.ts để sử dụng trực tiếp)
+// Import refreshAccessTokenDirect from lib/auth.ts
 async function refreshAccessTokenDirect(refreshToken: string): Promise<{
   access_token: string;
   refresh_token: string;
@@ -15,13 +15,6 @@ async function refreshAccessTokenDirect(refreshToken: string): Promise<{
     clientSecret: process.env.TEAMS_CLIENT_SECRET!,
     tenantId: process.env.TEAMS_TENANT_ID!,
   };
-
-  console.log('🔧 Force refresh: Config check:', {
-    hasClientId: !!TEAMS_CONFIG.clientId,
-    hasClientSecret: !!TEAMS_CONFIG.clientSecret,
-    hasTenantId: !!TEAMS_CONFIG.tenantId,
-    refreshTokenLength: refreshToken?.length || 0
-  });
 
   const requestBody = new URLSearchParams({
     client_id: TEAMS_CONFIG.clientId,
@@ -73,42 +66,12 @@ export async function POST() {
     console.log('🔓 Getting refresh token for force refresh...');
     const refreshToken = await getRefreshToken();
     
-    console.log('🔓 Refresh token debug:', {
-      hasRefreshToken: !!refreshToken,
-      refreshTokenLength: refreshToken?.length || 0,
-      refreshTokenPreview: refreshToken ? `${refreshToken.substring(0, 20)}...` : 'NULL'
-    });
-    
     if (!refreshToken) {
-      console.error('❌ No refresh token available - debugging...');
-      
-      // Debug database directly
-      const { executeQuerySingle } = await import('@/lib/db');
-      const directQuery = await executeQuerySingle<any>(
-        'SELECT refresh_token, created_at, expires_at FROM auth_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
-        ['admin']
-      );
-      
-      console.log('🔍 Direct database query result:', {
-        found: !!directQuery,
-        hasRefreshToken: !!directQuery?.refresh_token,
-        refreshTokenLength: directQuery?.refresh_token?.length || 0,
-        createdAt: directQuery?.created_at,
-        expiresAt: directQuery?.expires_at
-      });
-      
+      console.error('❌ No refresh token available');
       return Response.json({
         success: false,
         error: 'No refresh token available',
-        debug: {
-          beforeStatus,
-          directDatabaseQuery: directQuery ? {
-            hasRefreshToken: !!directQuery.refresh_token,
-            refreshTokenLength: directQuery.refresh_token?.length || 0,
-            createdAt: directQuery.created_at,
-            expiresAt: directQuery.expires_at
-          } : null
-        }
+        beforeStatus
       }, { status: 401 });
     }
     

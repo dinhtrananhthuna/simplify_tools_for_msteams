@@ -1,5 +1,4 @@
-import { Client } from '@microsoft/microsoft-graph-client';
-import { getValidAuthToken, saveAuthToken, getRefreshToken } from './auth';
+import { getValidAuthToken, getRefreshToken } from './auth';
 
 // Teams OAuth configuration
 const TEAMS_CONFIG = {
@@ -16,6 +15,8 @@ const TEAMS_CONFIG = {
     ? `${process.env.NEXTAUTH_URL}/api/auth/teams/callback`
     : `http://localhost:3000/api/auth/teams/callback`,
 };
+
+// ============ OAuth Functions ============
 
 // Get OAuth authorization URL
 export function getTeamsAuthUrl(): string {
@@ -78,461 +79,7 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   return result;
 }
 
-// Refresh access token using refresh token
-export async function refreshAccessToken(): Promise<{
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-}> {
-  const refreshToken = await getRefreshToken();
-  if (!refreshToken) {
-    throw new Error('No refresh token available');
-  }
-
-  const response = await fetch(`https://login.microsoftonline.com/${TEAMS_CONFIG.tenantId}/oauth2/v2.0/token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: TEAMS_CONFIG.clientId,
-      client_secret: TEAMS_CONFIG.clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Token refresh failed: ${error}`);
-  }
-
-  return response.json();
-}
-
-// Get authenticated Graph API client with timeout
-export async function getGraphClient(): Promise<Client> {
-  console.log('🔍 Creating Graph API client...');
-  
-  try {
-    // Add timeout for token operations
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Graph client creation timeout')), 10000); // 10 second timeout
-    });
-    
-    const clientPromise = (async () => {
-      console.log('🎯 Getting valid auth token (with auto-refresh)...');
-      const accessToken = await getValidAuthToken();
-      
-      if (!accessToken) {
-        console.error('❌ No valid token available after refresh attempt');
-        throw new Error('Authentication required - please re-authorize with Teams');
-      }
-
-      console.log('✅ Valid token obtained');
-      console.log('🔧 Initializing Graph client...');
-      return Client.init({
-        authProvider: async () => accessToken,
-      });
-    })();
-    
-    return await Promise.race([clientPromise, timeoutPromise]) as Client;
-  } catch (error) {
-    console.error('❌ Failed to create Graph client:', error);
-    
-    if (error instanceof Error && error.message.includes('timeout')) {
-      throw new Error('Authentication service is taking too long to respond. Please try again.');
-    }
-    
-    throw error;
-  }
-}
-
-// Simple in-memory cache for Teams chats
-interface ChatCache {
-  data: any[];
-  timestamp: number;
-  ttl: number; // Time to live in milliseconds
-}
-
-let teamsChatsCache: ChatCache | null = null;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
-
-// Get cached chats if still valid
-function getCachedChats(): any[] | null {
-  if (!teamsChatsCache) {
-    return null;
-  }
-  
-  const now = Date.now();
-  const isExpired = (now - teamsChatsCache.timestamp) > teamsChatsCache.ttl;
-  
-  if (isExpired) {
-    console.log('📦 Cache expired, clearing...');
-    teamsChatsCache = null;
-    return null;
-  }
-  
-  console.log('📦 Using cached chats data');
-  return teamsChatsCache.data;
-}
-
-// Set cache with current data
-function setCacheChats(data: any[]): void {
-  teamsChatsCache = {
-    data,
-    timestamp: Date.now(),
-    ttl: CACHE_TTL,
-  };
-  console.log(`📦 Cached ${data.length} chats for ${CACHE_TTL / 1000}s`);
-}
-
-// Get user's Teams chats with cache and optimization
-export async function getUserChatsOptimized(useCache: boolean = true): Promise<any[]> {
-  console.log('🔍 Getting user Teams chats (optimized + cached)...');
-  
-  // Check cache first if enabled
-  if (useCache) {
-    const cachedData = getCachedChats();
-    if (cachedData) {
-      return cachedData;
-    }
-  }
-  
-  try {
-    // Use retry mechanism for better reliability
-    const chats = await getUserChatsWithRetry(2);
-    
-    // Cache the results
-    if (useCache) {
-      setCacheChats(chats);
-    }
-    
-    return chats;
-  } catch (error) {
-    console.error('❌ Failed to get optimized chats:', error);
-    throw error;
-  }
-}
-
-// Clear cache manually (useful for testing or refresh)
-export function clearTeamsChatsCache(): void {
-  teamsChatsCache = null;
-  console.log('📦 Teams chats cache cleared');
-}
-
-// Get user's Teams chats with retry mechanism
-export async function getUserChatsWithRetry(maxRetries: number = 2): Promise<any[]> {
-  console.log(`🔄 Getting Teams chats with retry (max: ${maxRetries})`);
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`📡 Attempt ${attempt}/${maxRetries}`);
-      const chats = await getUserChats();
-      console.log(`✅ Success on attempt ${attempt}`);
-      return chats;
-    } catch (error) {
-      console.log(`❌ Attempt ${attempt} failed:`, error instanceof Error ? error.message : 'Unknown error');
-      
-      if (attempt === maxRetries) {
-        // Last attempt failed, throw the error
-        throw error;
-      }
-      
-      // Wait before retry with exponential backoff
-      const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
-      console.log(`⏳ Waiting ${waitTime}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-  }
-  
-  throw new Error('Max retries exceeded');
-}
-
-// Get user's Teams chats with optimization and timeout
-export async function getUserChats() {
-  console.log('🔍 Getting user Teams chats (optimized)...');
-  
-  try {
-    // Add timeout to prevent long-running requests
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Teams chats fetch timeout')), 15000); // Reduced to 15 seconds
-    });
-    
-    const chatsPromise = (async () => {
-      console.log('📊 Creating Graph API client...');
-      const client = await getGraphClient();
-      
-      console.log('📋 Fetching chats from Graph API with optimization...');
-      
-      // Optimize query with:
-      // 1. Select only needed fields to reduce payload
-      // 2. Top 50 to limit results for faster response
-      // 3. Filter for recent chats (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      // Đơn giản hóa query - chỉ lấy 3 chats với fields tối thiểu
-      const chats = await client
-        .api('/me/chats')
-        .select('id,topic,chatType')
-        .top(3)
-        .get();
-      
-      console.log(`✅ Successfully fetched ${chats.value?.length || 0} chats (optimized)`);
-      
-      // Process results with better display names
-      return chats.value.map((chat: any) => {
-        let displayName = chat.topic;
-        
-        // If no topic, create a meaningful name based on chat type
-        if (!displayName) {
-          switch (chat.chatType) {
-            case 'oneOnOne':
-              displayName = '1:1 Chat';
-              break;
-            case 'group':
-              displayName = `Group Chat (${chat.members?.length || 'N/A'} members)`;
-              break;
-            case 'meeting':
-              displayName = 'Meeting Chat';
-              break;
-            default:
-              displayName = `${chat.chatType} Chat`;
-          }
-        }
-        
-        return {
-          id: chat.id,
-          displayName,
-          chatType: chat.chatType,
-          lastUpdated: chat.lastUpdatedDateTime,
-        };
-      });
-    })();
-    
-    return await Promise.race([chatsPromise, timeoutPromise]);
-  } catch (error) {
-    console.error('❌ Failed to get user chats:', error);
-    
-    // Enhanced error handling with specific error types
-    if (error instanceof Error) {
-      if (error.message.includes('timeout')) {
-        throw new Error('Teams API is taking too long to respond. Please try again.');
-      }
-      
-      if (error.message.includes('Forbidden') || error.message.includes('403')) {
-        throw new Error('Access denied. Please check your Teams permissions and re-authenticate.');
-      }
-      
-      if (error.message.includes('Unauthorized') || error.message.includes('401')) {
-        throw new Error('Authentication expired. Please re-connect to Teams.');
-      }
-      
-      if (error.message.includes('Too Many Requests') || error.message.includes('429')) {
-        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
-      }
-    }
-    
-    throw new Error('Failed to fetch Teams chats. Please check your connection and try again.');
-  }
-}
-
-// Send message to Teams chat with timeout (supports both text and Adaptive Cards)
-export async function sendMessageToChat(
-  chatId: string,
-  message: string | any,
-  contentType: 'text' | 'html' | 'adaptiveCard' = 'html'
-): Promise<string> {
-  console.log(`📤 Sending message to chat: ${chatId}`);
-  
-  try {
-    // Add timeout to prevent long-running requests
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Send message timeout')), 15000); // 15 second timeout
-    });
-    
-    const sendPromise = (async () => {
-      console.log('📊 Creating Graph API client for sending message...');
-      const client = await getGraphClient();
-      
-      console.log('📨 Posting message to Teams chat...');
-      
-      let messagePayload: any;
-      
-      if (contentType === 'adaptiveCard' && typeof message === 'object') {
-        // Generate unique ID for attachment (required by Graph API)
-        const attachmentId = crypto.randomUUID();
-        
-        // Send Adaptive Card with correct Graph API format (content phải là string)
-        messagePayload = {
-          body: {
-            content: `<attachment id=\"${attachmentId}\"></attachment>`,
-            contentType: 'html',
-          },
-          attachments: [{
-            id: attachmentId,
-            contentType: message.contentType || "application/vnd.microsoft.card.adaptive",
-            content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content || message)
-          }]
-        };
-        
-        console.log('📋 Adaptive Card payload:', JSON.stringify(messagePayload, null, 2));
-      } else {
-        // Send regular text/html message
-        messagePayload = {
-          body: {
-            content: typeof message === 'string' ? message : JSON.stringify(message),
-            contentType: contentType === 'adaptiveCard' ? 'html' : contentType,
-          },
-        };
-      }
-      
-      const result = await client.api(`/chats/${chatId}/messages`).post(messagePayload);
-      
-      console.log('✅ Message sent successfully, ID:', result.id);
-      return result.id;
-    })();
-    
-    return await Promise.race([sendPromise, timeoutPromise]);
-  } catch (error) {
-    console.error('❌ Failed to send message to chat:', error);
-    
-    // Return friendly error message based on error type
-    if (error instanceof Error && error.message.includes('timeout')) {
-      throw new Error('Teams API is taking too long to send message. The message may still be delivered.');
-    }
-    
-    throw new Error('Failed to send message to Teams chat. Please check your permissions and try again.');
-  }
-}
-
-// Format pull request message for Teams using Adaptive Cards
-export function formatPullRequestMessage(prData: {
-  title: string;
-  author: string;
-  repository: string;
-  sourceBranch: string;
-  targetBranch: string;
-  url: string;
-  description?: string;
-  mentions?: string[];
-}): any {
-  const { title, author, sourceBranch, targetBranch, url, description, mentions } = prData;
-  
-  // Create improved Adaptive Card (English)
-  const adaptiveCard = {
-    contentType: "application/vnd.microsoft.card.adaptive",
-    content: {
-      type: "AdaptiveCard",
-      version: "1.3",
-      body: [
-        {
-          type: "TextBlock",
-          text: "🔔 Pull Request Notification",
-          weight: "Bolder",
-          size: "Medium",
-          color: "Accent",
-          spacing: "None"
-        },
-        {
-          type: "TextBlock",
-          text: title,
-          weight: "Bolder",
-          size: "Large",
-          wrap: true,
-          spacing: "Small"
-        },
-        {
-          type: "FactSet",
-          facts: [
-            {
-              title: "Author",
-              value: author
-            },
-            {
-              title: "Branch",
-              value: `${sourceBranch} → ${targetBranch}`
-            }
-          ]
-        },
-        ...(description ? [{
-          type: "TextBlock",
-          text: description,
-          wrap: true,
-          spacing: "Medium",
-          color: "Good",
-          isSubtle: false,
-          italic: true
-        }] : []),
-        {
-          type: "TextBlock",
-          text: "Please review this pull request and provide your feedback.",
-          wrap: true,
-          spacing: "Medium",
-          isSubtle: true
-        }
-      ],
-      actions: [
-        {
-          type: "Action.OpenUrl",
-          title: "View Pull Request",
-          url: url
-        }
-      ]
-    }
-  };
-
-  // Add mentions if provided
-  if (mentions && mentions.length > 0) {
-    const mentionText = mentions.map(user => `<at>${user}</at>`).join(' ');
-    (adaptiveCard.content.body as any[]).push({
-      type: "TextBlock",
-      text: `${mentionText} - Your review is requested!`,
-      wrap: true,
-      spacing: "Medium",
-      weight: "Bolder"
-    });
-  }
-
-  return adaptiveCard;
-}
-
-// Fallback HTML message format
-export function formatPullRequestMessageHTML(prData: {
-  title: string;
-  author: string;
-  repository: string;
-  sourceBranch: string;
-  targetBranch: string;
-  url: string;
-  description?: string;
-  mentions?: string[];
-}): string {
-  const { title, author, sourceBranch, targetBranch, url, description, mentions } = prData;
-  
-  let message = `
-    <div>
-      <h3><strong>New Pull Request</strong></h3>
-      <p><strong>${title}</strong></p>
-      <p><strong>Author:</strong> ${author}</p>
-      <p><strong>Branch:</strong> ${sourceBranch} → ${targetBranch}</p>
-      ${description ? `<p><strong>Description:</strong> ${description}</p>` : ''}
-      <p>Please review this pull request and provide your feedback.</p>
-      <p><a href="${url}">View Pull Request</a></p>
-    </div>
-  `;
-
-  // Add mentions if provided
-  if (mentions && mentions.length > 0) {
-    const mentionText = mentions.map(user => `<at>${user}</at>`).join(' ');
-    message += `<p><strong>${mentionText} - Your review is requested!</strong></p>`;
-  }
-
-  return message;
-}
-
-// Check Teams authentication status
+// Simple auth status check (without Graph API validation)
 export async function checkTeamsAuthStatus(): Promise<{
   isAuthenticated: boolean;
   userInfo?: any;
@@ -541,7 +88,7 @@ export async function checkTeamsAuthStatus(): Promise<{
   try {
     console.log('🔍 Checking Teams auth status...');
     
-    // First check if we have a valid token in database
+    // Check if we have a valid token in database
     const token = await getValidAuthToken();
     console.log('🎯 Valid token from DB:', token ? 'YES' : 'NO');
     
@@ -559,8 +106,8 @@ export async function checkTeamsAuthStatus(): Promise<{
     return {
       isAuthenticated: true,
       userInfo: {
-        displayName: 'User',
-        email: 'Authenticated',
+        displayName: 'Teams User',
+        email: 'authenticated@teams.microsoft.com',
         id: 'token-validated',
       },
     };
@@ -573,55 +120,407 @@ export async function checkTeamsAuthStatus(): Promise<{
   }
 }
 
-// Check Teams authentication status with Graph API validation (slower)
-export async function checkTeamsAuthStatusDetailed(): Promise<{
-  isAuthenticated: boolean;
-  userInfo?: any;
-  error?: string;
-}> {
-  try {
-    console.log('🔍 Checking Teams auth status with Graph API validation...');
-    
-    // First check if we have a valid token in database
+// ============ Teams Client (Fetch API) ============
+
+// Simple Teams client using direct fetch API
+export class TeamsClient {
+  private accessToken: string;
+
+  constructor(accessToken: string) {
+    this.accessToken = accessToken;
+  }
+
+  static async create(): Promise<TeamsClient> {
     const token = await getValidAuthToken();
-    console.log('🎯 Valid token from DB:', token ? 'YES' : 'NO');
-    
     if (!token) {
-      console.log('❌ No valid token found in database');
-      return {
-        isAuthenticated: false,
-        error: 'No valid authentication token found',
+      throw new Error('No valid access token found');
+    }
+    return new TeamsClient(token);
+  }
+
+  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+    const url = `https://graph.microsoft.com/v1.0${endpoint}`;
+    
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Graph API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  async getUserInfo() {
+    console.log('📊 Getting user info...');
+    return this.makeRequest('/me');
+  }
+
+  async getChats(limit: number = 3) {
+    console.log(`📋 Getting ${limit} chats with members info...`);
+    return this.makeRequest(`/me/chats?$top=${limit}&$select=id,topic,chatType,members&$expand=members`);
+  }
+
+  async sendMessage(chatId: string, message: string | any, contentType: 'text' | 'html' | 'adaptiveCard' = 'html') {
+    console.log(`📤 Sending message to chat: ${chatId}`);
+    
+    let messagePayload: any;
+    
+    if (contentType === 'adaptiveCard' && typeof message === 'object') {
+      // Generate unique ID for attachment (required by Graph API)
+      const attachmentId = crypto.randomUUID();
+      
+      // Send Adaptive Card with correct Graph API format (content phải là string)
+      messagePayload = {
+        body: {
+          content: `<attachment id=\"${attachmentId}\"></attachment>`,
+          contentType: 'html',
+        },
+        attachments: [{
+          id: attachmentId,
+          contentType: message.contentType || "application/vnd.microsoft.card.adaptive",
+          content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content || message)
+        }]
+      };
+      
+      console.log('📋 Adaptive Card payload:', JSON.stringify(messagePayload, null, 2));
+    } else {
+      // Send regular text/html message
+      messagePayload = {
+        body: {
+          content: typeof message === 'string' ? message : JSON.stringify(message),
+          contentType: contentType === 'adaptiveCard' ? 'html' : contentType,
+        },
       };
     }
     
-    console.log('✅ Token found, testing Graph API access...');
-    
-    // Add timeout to Graph API call
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Graph API call timeout')), 10000); // 10 second timeout
+    return this.makeRequest(`/chats/${chatId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(messagePayload),
     });
+  }
+}
+
+// ============ Helper Functions ============
+
+export async function getUserInfo() {
+  console.log('🔍 Getting user info with Teams client...');
+  
+  try {
+    const client = await TeamsClient.create();
+    const userInfo = await client.getUserInfo();
     
-    const graphApiPromise = (async () => {
-      const client = await getGraphClient();
-      return await client.api('/me').get();
-    })();
-    
-    const userInfo = await Promise.race([graphApiPromise, timeoutPromise]);
-    
-    console.log('✅ Graph API access successful');
     return {
-      isAuthenticated: true,
-      userInfo: {
-        displayName: userInfo.displayName,
-        email: userInfo.mail || userInfo.userPrincipalName,
-        id: userInfo.id,
-      },
+      displayName: userInfo.displayName,
+      mail: userInfo.mail || userInfo.userPrincipalName,
+      id: userInfo.id,
     };
   } catch (error) {
-    console.error('❌ Teams auth status check failed:', error);
-    return {
-      isAuthenticated: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+    console.error('❌ Failed to get user info:', error);
+    throw error;
   }
+}
+
+export async function getTeamsChats(limit: number = 3) {
+  console.log(`🔍 Getting ${limit} chats with Teams client...`);
+  
+  try {
+    const client = await TeamsClient.create();
+    const response = await client.getChats(limit);
+    
+    // Lấy thông tin user hiện tại để filter oneOnOne chats
+    let currentUserId = null;
+    try {
+      const userInfo = await client.getUserInfo();
+      currentUserId = userInfo.id;
+      console.log(`👤 Current user: ${userInfo.displayName} (ID: ${currentUserId})`);
+    } catch (error) {
+      console.log('⚠️ Could not get current user info');
+    }
+    
+    return response.value?.map((chat: any) => {
+      let displayName = chat.topic;
+      
+      // Nếu là oneOnOne chat và không có topic, hiển thị tên người đối thoại
+      if (chat.chatType === 'oneOnOne' && !displayName && chat.members) {
+        // Tìm member không phải là chính mình (current user)
+        const otherMember = chat.members.find((member: any) => 
+          member.userId && 
+          member.displayName && 
+          member.userId !== currentUserId &&
+          !member.displayName.includes('Application') &&
+          !member.displayName.includes('Bot')
+        );
+        
+        if (otherMember) {
+          displayName = `${otherMember.displayName}`;
+          console.log(`💬 OneOnOne chat: ${displayName} (ID: ${otherMember.userId})`);
+        } else {
+          console.log(`⚠️ Could not find other member in oneOnOne chat:`, chat.members);
+        }
+      }
+      
+      // Fallback cho các trường hợp khác
+      if (!displayName) {
+        switch (chat.chatType) {
+          case 'oneOnOne':
+            displayName = '1:1 Chat';
+            break;
+          case 'group':
+            const memberCount = chat.members?.length || 0;
+            displayName = chat.topic || `Group Chat (${memberCount} members)`;
+            break;
+          case 'meeting':
+            displayName = chat.topic || 'Meeting Chat';
+            break;
+          default:
+            displayName = `${chat.chatType} Chat`;
+        }
+      }
+      
+      return {
+        id: chat.id,
+        displayName,
+        chatType: chat.chatType,
+        memberCount: chat.members?.length || 0,
+        members: chat.members?.map((member: any) => ({
+          id: member.userId,
+          displayName: member.displayName,
+          email: member.email
+        })) || []
+      };
+    }) || [];
+  } catch (error) {
+    console.error('❌ Failed to get chats:', error);
+    throw error;
+  }
+}
+
+export async function sendTeamsMessage(chatId: string, message: string | any, contentType: 'text' | 'html' | 'adaptiveCard' = 'html') {
+  console.log(`📤 Sending message with Teams client...`);
+  
+  try {
+    const client = await TeamsClient.create();
+    const result = await client.sendMessage(chatId, message, contentType);
+    
+    return result.id;
+  } catch (error) {
+    console.error('❌ Failed to send message:', error);
+    throw error;
+  }
+}
+
+// ============ Legacy Aliases (for backward compatibility) ============
+
+// Keep old function names for backward compatibility
+export const SimpleTeamsClient = TeamsClient;
+export const getSimpleUserInfo = getUserInfo;
+export const getSimpleChats = getTeamsChats;
+export const sendSimpleMessage = sendTeamsMessage;
+
+// ============ Message Formatting Functions ============
+
+// Format pull request message as Adaptive Card
+export function formatPullRequestMessage(prData: {
+  title: string;
+  author: string;
+  repository: string;
+  sourceBranch: string;
+  targetBranch: string;
+  url: string;
+  description?: string;
+  mentions?: string[];
+}): any {
+  // Extract images from description if present
+  const images: string[] = [];
+  let cleanDescription = prData.description || '';
+  
+  if (cleanDescription) {
+    // Extract markdown images: ![alt](url)
+    const markdownImageRegex = /!\[.*?\]\((https?:\/\/[^\s)]+)\)/g;
+    let match;
+    while ((match = markdownImageRegex.exec(cleanDescription)) !== null) {
+      const imageUrl = match[1];
+      // Skip Azure DevOps attachment URLs (they require authentication)
+      if (!imageUrl.includes('/_apis/git/repositories/') || !imageUrl.includes('/attachments/')) {
+        images.push(imageUrl);
+      }
+    }
+    
+    // Extract HTML images: <img src="url">
+    const htmlImageRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    while ((match = htmlImageRegex.exec(cleanDescription)) !== null) {
+      const imageUrl = match[1];
+      // Skip Azure DevOps attachment URLs
+      if (!imageUrl.includes('/_apis/git/repositories/') || !imageUrl.includes('/attachments/')) {
+        images.push(imageUrl);
+      }
+    }
+    
+    // Remove image syntax from description for cleaner display
+    cleanDescription = cleanDescription
+      .replace(/!\[.*?\]\([^)]+\)/g, '') // Remove markdown images
+      .replace(/<img[^>]*>/gi, '') // Remove HTML images
+      .trim();
+  }
+  
+  // Limit to 3 images to prevent oversized cards
+  const displayImages = images.slice(0, 3);
+  
+  // Build card body elements
+  const bodyElements: any[] = [
+    {
+      type: "TextBlock",
+      text: prData.title,
+      weight: "Bolder",
+      size: "Medium",
+      wrap: true
+    },
+    {
+      type: "FactSet",
+      facts: [
+        {
+          title: "Author:",
+          value: prData.author
+        },
+        {
+          title: "Repository:",
+          value: prData.repository
+        },
+        {
+          title: "Branch:",
+          value: `${prData.sourceBranch} → ${prData.targetBranch}`
+        }
+      ]
+    }
+  ];
+  
+  // Add description if present
+  if (cleanDescription && cleanDescription.length > 0) {
+    bodyElements.push({
+      type: "TextBlock",
+      text: cleanDescription.length > 200 ? cleanDescription.substring(0, 200) + '...' : cleanDescription,
+      wrap: true,
+      spacing: "Medium",
+      color: "Good"
+    });
+  }
+  
+  // Add images if present
+  if (displayImages.length > 0) {
+    displayImages.forEach(imageUrl => {
+      bodyElements.push({
+        type: "Image",
+        url: imageUrl,
+        size: "Medium",
+        spacing: "Medium"
+      });
+    });
+    
+    // Add warning if there were more images
+    if (images.length > 3) {
+      bodyElements.push({
+        type: "TextBlock",
+        text: `⚠️ ${images.length - 3} more image(s) not shown`,
+        size: "Small",
+        color: "Warning",
+        spacing: "Small"
+      });
+    }
+  }
+  
+  // Add Azure DevOps attachment warning if found
+  if (prData.description && (prData.description.includes('/_apis/git/repositories/') && prData.description.includes('/attachments/'))) {
+    bodyElements.push({
+      type: "TextBlock",
+      text: "⚠️ Some images from Azure DevOps attachments cannot be displayed (authentication required)",
+      size: "Small",
+      color: "Warning",
+      spacing: "Small"
+    });
+  }
+  
+  // Add mentions if enabled
+  if (prData.mentions && prData.mentions.length > 0) {
+    const mentionText = prData.mentions.map(user => `<at>${user}</at>`).join(' ');
+    bodyElements.push({
+      type: "TextBlock",
+      text: `📢 ${mentionText} - Please review this pull request`,
+      wrap: true,
+      spacing: "Medium"
+    });
+  }
+
+  // add text block to notify user to review the pull request
+    bodyElements.push({
+      type: "TextBlock",
+      text: "Please review this pull request and provide your feedback.",
+      wrap: true,
+      spacing: "Medium",
+      isSubtle: true
+    });
+  
+  
+  const adaptiveCard = {
+    contentType: "application/vnd.microsoft.card.adaptive",
+    content: {
+      type: "AdaptiveCard",
+      version: "1.4",
+      body: bodyElements,
+      actions: [
+        {
+          type: "Action.OpenUrl",
+          title: "View Pull Request",
+          url: prData.url
+        }
+      ]
+    }
+  };
+
+  return adaptiveCard;
+}
+
+// Format pull request message as HTML (fallback)
+export function formatPullRequestMessageHTML(prData: {
+  title: string;
+  author: string;
+  repository: string;
+  sourceBranch: string;
+  targetBranch: string;
+  url: string;
+  description?: string;
+  mentions?: string[];
+}): string {
+  let html = `
+    <h3>🔔 New Pull Request</h3>
+    <p><strong>${prData.title}</strong></p>
+    <ul>
+      <li><strong>Author:</strong> ${prData.author}</li>
+      <li><strong>Repository:</strong> ${prData.repository}</li>
+      <li><strong>Branch:</strong> ${prData.sourceBranch} → ${prData.targetBranch}</li>
+    </ul>
+  `;
+  
+  if (prData.description && prData.description.trim().length > 0) {
+    const shortDescription = prData.description.length > 200 
+      ? prData.description.substring(0, 200) + '...' 
+      : prData.description;
+    html += `<p><strong>Description:</strong><br/>${shortDescription}</p>`;
+  }
+  
+  if (prData.mentions && prData.mentions.length > 0) {
+    const mentionText = prData.mentions.map(user => `<at>${user}</at>`).join(' ');
+    html += `<p>📢 ${mentionText} - Please review this pull request</p>`;
+  }
+  
+  html += `<p><a href="${prData.url}">👉 View Pull Request</a></p>`;
+  
+  return html;
 } 
