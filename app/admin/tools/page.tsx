@@ -15,6 +15,7 @@ export default function ToolsPage() {
       status: 'active',
       href: '/admin/tools/pr-notifier'
     },
+
     {
       id: 'future-tool',
       name: 'Future Tool',

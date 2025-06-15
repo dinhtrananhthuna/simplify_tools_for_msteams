@@ -179,6 +179,8 @@ export interface PRNotifierConfig {
   mentionUsers: string[];
 }
 
+
+
 // ============ Validation Schemas ============
 
 export const PRNotifierConfigSchema = z.object({
@@ -188,6 +190,8 @@ export const PRNotifierConfigSchema = z.object({
   enableMentions: z.boolean().default(false),
   mentionUsers: z.array(z.string()).default([]),
 });
+
+
 
 export const WebhookPayloadSchema = z.object({
   eventType: z.string(),

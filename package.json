@@ -10,6 +10,7 @@
     "db:setup": "tsx scripts/setup-db.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "db:remove-bug-reports": "tsx scripts/migrate-remove-bug-reports.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
