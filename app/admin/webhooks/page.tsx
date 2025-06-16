@@ -149,13 +149,30 @@ export default function WebhooksPage() {
     }
   };
 
-  const handleCopyWebhookUrl = async () => {
+  const handleCopyAzureDevOpsUrl = async () => {
     try {
       const url = `${window.location.origin}/api/webhooks/azure-devops`;
       await navigator.clipboard.writeText(url);
       toast({
         variant: "success",
-        description: "Đã copy webhook URL thành công! 📋",
+        description: "Đã copy Azure DevOps webhook URL thành công! 📋",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể copy URL. Vui lòng thử lại.",
+      });
+    }
+  };
+
+  const handleCopyTeamsBotUrl = async () => {
+    try {
+      const url = `${window.location.origin}/api/webhooks/teams-bot`;
+      await navigator.clipboard.writeText(url);
+      toast({
+        variant: "success",
+        description: "Đã copy Teams Bot webhook URL thành công! 🤖",
       });
     } catch (error) {
       toast({
@@ -226,11 +243,6 @@ export default function WebhooksPage() {
       <PageTemplate 
         title="📡 Webhooks" 
         description="Quản lý và theo dõi các webhook endpoints"
-        actions={
-          <Button onClick={handleCopyWebhookUrl} variant="outline" size="sm">
-            📋 Copy Webhook URL
-          </Button>
-        }
       >
         {/* Stats Grid */}
         <StatsGrid>
@@ -261,7 +273,7 @@ export default function WebhooksPage() {
 
         {/* Webhook Configuration */}
         <SectionCard title="🔗 Webhook Configuration">
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Azure DevOps PR Webhook URL
@@ -272,12 +284,31 @@ export default function WebhooksPage() {
                   readOnly
                   className="font-mono text-sm"
                 />
-                <Button onClick={handleCopyWebhookUrl} variant="outline" size="sm">
+                <Button onClick={handleCopyAzureDevOpsUrl} variant="outline" size="sm">
                   📋 Copy
                 </Button>
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 Sử dụng URL này trong Azure DevOps Service Hooks
+              </p>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Teams Bot Webhook URL (Quickbug Report)
+              </label>
+              <div className="flex items-center space-x-2">
+                <Input
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/teams-bot`}
+                  readOnly
+                  className="font-mono text-sm"
+                />
+                <Button onClick={handleCopyTeamsBotUrl} variant="outline" size="sm">
+                  🤖 Copy
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Sử dụng URL này trong Microsoft Bot Framework hoặc Azure Bot Service
               </p>
             </div>
           </div>

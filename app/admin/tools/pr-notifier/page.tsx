@@ -105,7 +105,7 @@ export default function PRNotifierPage() {
     setChatsError(null);
     
     try {
-      const url = '/api/teams/chats?limit=10'; // Using simple fetch - no cache needed
+      const url = '/api/teams/chats?limit=20'; // Using simple fetch - no cache needed
       const chatsResponse = await fetch(url);
       const chatsData = await chatsResponse.json();
       
