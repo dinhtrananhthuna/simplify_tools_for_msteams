@@ -378,6 +378,16 @@ export function formatPullRequestMessage(prData: {
   const bodyElements: any[] = [
     {
       type: "TextBlock",
+      text: "🔔 Pull Request Notification",
+      weight: "Bolder",
+      size: "Small",
+      color: "Accent",
+      horizontalAlignment: "Center",
+      wrap: true,
+      spacing: "Small"
+    },
+    {
+      type: "TextBlock",
       text: prData.title,
       weight: "Bolder",
       size: "Medium",
