@@ -15,7 +15,14 @@ export default function ToolsPage() {
       status: 'active',
       href: '/admin/tools/pr-notifier'
     },
-
+    {
+      id: 'quickbug',
+      name: 'Quick Bug Reporter',
+      description: 'Teams Message Extension để báo cáo bug nhanh với Adaptive Cards',
+      icon: '🐞',
+      status: 'active',
+      href: '/admin/tools/quickbug'
+    },
     {
       id: 'future-tool',
       name: 'Future Tool',
