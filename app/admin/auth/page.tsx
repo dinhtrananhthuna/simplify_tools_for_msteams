@@ -21,6 +21,8 @@ interface AuthStatus {
   expiresAt?: string;
   scope?: string;
   timeUntilExpiry?: number;
+  isExternal?: boolean;
+  tenantId?: string;
 }
 
 export default function AuthPage() {
@@ -207,27 +209,96 @@ export default function AuthPage() {
       </SectionCard>
 
       {/* Microsoft Teams OAuth */}
-      <SectionCard title="🔗 Microsoft Teams OAuth">
-        <div className="space-y-4">
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-medium text-blue-800 mb-2">ℹ️ How it works</h4>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• Click "Connect to Microsoft Teams" to start OAuth flow</li>
-              <li>• You'll be redirected to Microsoft login page</li>
-              <li>• Grant permissions to send messages to Teams</li>
-              <li>• You'll be redirected back with authentication token</li>
-              <li>• Token will be automatically refreshed when needed</li>
-            </ul>
+              <SectionCard title="📱 Microsoft Teams Authentication">
+          {authStatus?.isAuthenticated ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <StatusBadge type="success">Connected</StatusBadge>
+                  <span className="text-card-title text-green-900">Connected to Teams</span>
+                </div>
+                                  {authStatus?.userInfo && (
+                    <div className="text-sm text-green-700 mt-1">
+                      Logged in as: {authStatus.userInfo.displayName} ({authStatus.userInfo.email})
+                    </div>
+                  )}
+                  {authStatus?.isExternal && (
+                    <div className="text-sm text-blue-700 mt-1 flex items-center space-x-1">
+                      <span>🌐</span>
+                      <span>External user from tenant: {authStatus.tenantId?.substring(0, 8)}...</span>
+                    </div>
+                  )}
+                  {authStatus?.expiresAt && (
+                    <div className="text-sm text-gray-600 mt-1">
+                      Token expires: {new Date(authStatus.expiresAt).toLocaleString()}
+                    </div>
+                  )}
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleForceRefresh}
+                  disabled={isRefreshing}
+                  className="btn-secondary text-sm"
+                >
+                  {isRefreshing ? '🔄 Refreshing...' : '🔄 Force Refresh'}
+                </button>
+                <button
+                  onClick={handleLogin}
+                  className="btn-secondary text-sm"
+                >
+                  🔄 Reconnect
+                </button>
+              </div>
+            </div>
+            
+            {/* Multi-tenant Configuration Info */}
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">🏢 Tenant Configuration</h4>
+              <div className="space-y-2 text-sm text-blue-700">
+                <div>
+                  <span className="font-medium">Home Tenant:</span> {process.env.NEXT_PUBLIC_TEAMS_TENANT_ID?.substring(0, 8) || 'Not configured'}...
+                </div>
+                <div>
+                  <span className="font-medium">Multi-tenant Mode:</span> {process.env.NEXT_PUBLIC_TEAMS_MULTITENANT_MODE === 'true' ? 'Enabled' : 'Disabled'}
+                </div>
+                                  <div>
+                    <span className="font-medium">Current User Type:</span> {authStatus?.isExternal ? 'External User' : 'Internal User'}
+                  </div>
+                  {authStatus?.tenantId && (
+                    <div>
+                      <span className="font-medium">User Tenant ID:</span> {authStatus.tenantId}
+                    </div>
+                  )}
+              </div>
+            </div>
           </div>
-
-          {!authStatus?.isAuthenticated && (
-            <div className="text-center py-6">
-              <button onClick={handleLogin} className="btn-primary">
-                🚀 Connect to Microsoft Teams
+        ) : (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <StatusBadge type="warning">Required</StatusBadge>
+                  <span className="text-card-title text-yellow-900">Teams authentication required</span>
+                </div>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Connect to Microsoft Teams to access features
+                </p>
+                {process.env.NEXT_PUBLIC_TEAMS_MULTITENANT_MODE === 'true' && (
+                  <p className="text-sm text-blue-700 mt-1">
+                    ℹ️ Multi-tenant mode is enabled - external users can authenticate
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={handleLogin}
+                className="btn-primary"
+              >
+                🔗 Connect to Teams
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </SectionCard>
 
       {/* Troubleshooting */}

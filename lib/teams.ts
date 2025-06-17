@@ -14,35 +14,44 @@ const TEAMS_CONFIG = {
   redirectUri: process.env.NEXTAUTH_URL 
     ? `${process.env.NEXTAUTH_URL}/api/auth/teams/callback`
     : `http://localhost:3000/api/auth/teams/callback`,
+  // Multi-tenant support: use 'common' for multi-tenant or specific tenant for single-tenant
+  authEndpoint: process.env.TEAMS_MULTITENANT_MODE === 'true' ? 'common' : (process.env.TEAMS_TENANT_ID || 'common'),
 };
 
-// ============ OAuth Functions ============
+// ============ Multi-tenant OAuth Functions ============
 
-// Get OAuth authorization URL
-export function getTeamsAuthUrl(): string {
+// Get OAuth authorization URL with tenant support
+export function getTeamsAuthUrl(tenantId?: string): string {
+  const effectiveTenant = tenantId || TEAMS_CONFIG.authEndpoint;
+  
   const params = new URLSearchParams({
     client_id: TEAMS_CONFIG.clientId,
     response_type: 'code',
     redirect_uri: TEAMS_CONFIG.redirectUri,
     scope: TEAMS_CONFIG.scopes.join(' '),
     response_mode: 'query',
-    tenant: TEAMS_CONFIG.tenantId,
+    tenant: effectiveTenant,
   });
 
-  return `https://login.microsoftonline.com/${TEAMS_CONFIG.tenantId}/oauth2/v2.0/authorize?${params}`;
+  console.log(`🔗 Building auth URL for tenant: ${effectiveTenant}`);
+  return `https://login.microsoftonline.com/${effectiveTenant}/oauth2/v2.0/authorize?${params}`;
 }
 
-// Exchange code for tokens
-export async function exchangeCodeForTokens(code: string): Promise<{
+// Exchange code for tokens with tenant support
+export async function exchangeCodeForTokens(code: string, tenantId?: string): Promise<{
   access_token: string;
   refresh_token: string;
   expires_in: number;
   scope: string;
+  tenant_id?: string;
 }> {
+  const effectiveTenant = tenantId || TEAMS_CONFIG.authEndpoint;
+  
   console.log('🔄 exchangeCodeForTokens: Starting token exchange...');
   console.log('📝 exchangeCodeForTokens: Code length:', code?.length || 0);
+  console.log('🏢 exchangeCodeForTokens: Target tenant:', effectiveTenant);
   
-  const response = await fetch(`https://login.microsoftonline.com/${TEAMS_CONFIG.tenantId}/oauth2/v2.0/token`, {
+  const response = await fetch(`https://login.microsoftonline.com/${effectiveTenant}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -73,10 +82,102 @@ export async function exchangeCodeForTokens(code: string): Promise<{
     refreshTokenLength: result.refresh_token?.length || 0,
     expiresIn: result.expires_in,
     scope: result.scope,
-    tokenType: result.token_type
+    tokenType: result.token_type,
+    tenantId: effectiveTenant
   });
 
-  return result;
+  return {
+    ...result,
+    tenant_id: effectiveTenant
+  };
+}
+
+// Handle external tenant authentication
+export async function handleExternalTenantAuth(code: string, tenantId: string): Promise<{
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  scope: string;
+  tenant_id: string;
+}> {
+  console.log('🌐 handleExternalTenantAuth: Processing external tenant authentication');
+  console.log('🏢 External tenant ID:', tenantId);
+  
+  const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: TEAMS_CONFIG.clientId,
+      client_secret: TEAMS_CONFIG.clientSecret,
+      code,
+      redirect_uri: TEAMS_CONFIG.redirectUri,
+      grant_type: 'authorization_code',
+    }),
+  });
+
+  console.log('📡 handleExternalTenantAuth: Response status:', response.status);
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('❌ handleExternalTenantAuth: External tenant auth failed:', error);
+    throw new Error(`External tenant authentication failed: ${error}`);
+  }
+
+  const result = await response.json();
+  
+  console.log('✅ handleExternalTenantAuth: External tenant auth successful');
+  return {
+    ...result,
+    tenant_id: tenantId
+  };
+}
+
+// Detect tenant from JWT token
+export function extractTenantFromToken(accessToken: string): string | null {
+  try {
+    // JWT tokens have 3 parts: header.payload.signature
+    const tokenParts = accessToken.split('.');
+    if (tokenParts.length !== 3) {
+      console.warn('⚠️ Invalid JWT token format');
+      return null;
+    }
+    
+    // Decode payload (base64url)
+    const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64url').toString());
+    
+    // Extract tenant ID from 'tid' claim
+    const tenantId = payload.tid;
+    console.log('🔍 Extracted tenant ID from token:', tenantId);
+    
+    return tenantId;
+  } catch (error) {
+    console.error('❌ Failed to extract tenant from token:', error);
+    return null;
+  }
+}
+
+// Validate if user is from external tenant
+export function isExternalUser(accessToken: string): boolean {
+  const userTenantId = extractTenantFromToken(accessToken);
+  const homeTenantId = TEAMS_CONFIG.tenantId;
+  
+  const isExternal = userTenantId && userTenantId !== homeTenantId;
+  console.log('👤 User tenant check:', {
+    userTenant: userTenantId,
+    homeTenant: homeTenantId,
+    isExternal
+  });
+  
+  return !!isExternal;
+}
+
+// ============ Legacy OAuth Functions (Backward Compatibility) ============
+
+// Original function for backward compatibility
+export function getTeamsAuthUrlLegacy(): string {
+  return getTeamsAuthUrl(TEAMS_CONFIG.tenantId);
 }
 
 // Simple auth status check (without Graph API validation)
@@ -84,6 +185,8 @@ export async function checkTeamsAuthStatus(): Promise<{
   isAuthenticated: boolean;
   userInfo?: any;
   error?: string;
+  isExternal?: boolean;
+  tenantId?: string;
 }> {
   try {
     console.log('🔍 Checking Teams auth status...');
@@ -100,6 +203,10 @@ export async function checkTeamsAuthStatus(): Promise<{
       };
     }
     
+    // Extract tenant information from token
+    const tenantId = extractTenantFromToken(token);
+    const isExternal = isExternalUser(token);
+    
     // Return authenticated status based on token existence
     // We'll validate the token when actually using it, not during status check
     console.log('✅ Valid token found in database');
@@ -110,6 +217,8 @@ export async function checkTeamsAuthStatus(): Promise<{
         email: 'authenticated@teams.microsoft.com',
         id: 'token-validated',
       },
+      isExternal,
+      tenantId: tenantId || undefined,
     };
   } catch (error) {
     console.error('❌ Teams auth status check failed:', error);

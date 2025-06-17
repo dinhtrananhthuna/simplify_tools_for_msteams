@@ -1,0 +1,73 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "id": "9530c1db-3eba-4ed1-90c8-4c1d60d13954",
+  "version": "1.2.1",
+  "packageName": "com.simplify.quickbug",
+  "developer": {
+    "name": "Simplify Dalat",
+    "websiteUrl": "https://ms-teams-tools-suite.vercel.app",
+    "privacyUrl": "https://ms-teams-tools-suite.vercel.app/privacy.html",
+    "termsOfUseUrl": "https://ms-teams-tools-suite.vercel.app/tou.html"
+  },
+  "name": {
+    "short": "Simplify Quickbug Extension",
+    "full": "Simplify Quickbug Extension - Multi-tenant Bug Reporter"
+  },
+  "description": {
+    "short": "Quickly report bugs with support for external users",
+    "full": "A powerful Teams Message Extension for quick bug reporting that supports both internal and external users across different organizations"
+  },
+  "icons": {
+    "outline": "icon-outline.png",
+    "color": "icon-color.png"
+  },
+  "accentColor": "#D85028",
+  "configurableTabs": [],
+  "staticTabs": [],
+  "bots": [
+    {
+      "botId": "9530c1db-3eba-4ed1-90c8-4c1d60d13954",
+      "scopes": [ "personal", "team", "groupchat" ],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "connectors": [],
+  "composeExtensions": [
+    {
+      "botId": "9530c1db-3eba-4ed1-90c8-4c1d60d13954",
+      "canUpdateConfiguration": false,
+      "commands": [
+        {
+          "id": "simplifyQuickbugMessageExtension",
+          "title": "Quick Bug Report",
+          "description": "Report bugs quickly with structured forms",
+          "initialRun": true,
+          "type": "action",
+          "context": [
+            "compose"
+          ],
+          "fetchTask": true
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "*.teams.microsoft.com",
+    "teams.microsoft.com",
+    "*.microsoftonline.com",
+    "ms-teams-tools-suite.vercel.app",
+    "*.vercel.app"
+  ],
+  "showLoadingIndicator": true,
+  "defaultBlockUntilAdminAction": false,
+  "webApplicationInfo": {
+    "id": "9530c1db-3eba-4ed1-90c8-4c1d60d13954",
+    "resource": "https://ms-teams-tools-suite.vercel.app"
+  }
+}

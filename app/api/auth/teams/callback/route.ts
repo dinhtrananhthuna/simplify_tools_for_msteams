@@ -1,61 +1,115 @@
 import { NextRequest } from 'next/server';
-import { exchangeCodeForTokens } from '@/lib/teams';
+import { handleExternalTenantAuth, exchangeCodeForTokens, extractTenantFromToken, isExternalUser } from '@/lib/teams';
 import { saveAuthToken } from '@/lib/auth';
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  console.log('🔗 Teams OAuth callback called');
-  
   try {
-    const searchParams = request.nextUrl.searchParams;
+    const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const error = searchParams.get('error');
+    const errorDescription = searchParams.get('error_description');
+    const state = searchParams.get('state'); // Can contain tenant info for external auth
     
-    console.log('📊 OAuth callback params:', { 
-      hasCode: !!code, 
+    console.log('🔄 Teams OAuth callback triggered');
+    console.log('📝 Received parameters:', {
+      hasCode: !!code,
       hasError: !!error,
-      error: error 
+      errorDescription,
+      state
     });
-    
-    // Handle OAuth errors
+
     if (error) {
-      console.error('❌ OAuth error received:', error);
-      return Response.redirect(`${request.nextUrl.origin}/admin/auth?error=${encodeURIComponent(error)}`);
+      console.error('❌ OAuth error:', error, errorDescription);
+      return Response.redirect(`${process.env.NEXTAUTH_URL}/admin/auth?error=${encodeURIComponent(error)}`);
     }
-    
-    // Handle missing code
+
     if (!code) {
       console.error('❌ No authorization code received');
-      return Response.redirect(`${request.nextUrl.origin}/admin/auth?error=missing_code`);
+      return Response.redirect(`${process.env.NEXTAUTH_URL}/admin/auth?error=no_code`);
     }
-    
-    console.log('✅ Authorization code received, exchanging for tokens...');
-    
-    // Exchange code for tokens
-    const tokens = await exchangeCodeForTokens(code);
-    console.log('🎯 Token exchange successful');
-    
-    // Save tokens to database (encrypted)
-    await saveAuthToken(
-      tokens.access_token,
-      tokens.refresh_token,
-      tokens.expires_in,
-      tokens.scope
-    );
-    console.log('💾 Tokens saved to database');
-    
-    // Redirect to success page
-    console.log('🎉 Redirecting to auth page with success');
-    return Response.redirect(`${request.nextUrl.origin}/admin/auth?success=true`);
-    
+
+    try {
+      // Parse state for external tenant info if provided
+      let externalTenantId: string | undefined;
+      if (state) {
+        try {
+          const stateData = JSON.parse(decodeURIComponent(state));
+          externalTenantId = stateData.tenantId;
+          console.log('🏢 External tenant from state:', externalTenantId);
+        } catch (parseError) {
+          console.log('⚠️ Could not parse state data, proceeding with standard auth');
+        }
+      }
+
+      let tokenResponse;
+      
+      if (externalTenantId) {
+        // Handle external tenant authentication
+        console.log('🌐 Processing external tenant authentication');
+        tokenResponse = await handleExternalTenantAuth(code, externalTenantId);
+      } else {
+        // Handle standard authentication (with potential multi-tenant support)
+        console.log('🔒 Processing standard authentication');
+        tokenResponse = await exchangeCodeForTokens(code);
+      }
+
+      console.log('✅ Token exchange successful');
+
+      // Extract tenant info from the received token
+      const userTenantId = extractTenantFromToken(tokenResponse.access_token);
+      const isExternal = isExternalUser(tokenResponse.access_token);
+      
+      console.log('👤 User authentication info:', {
+        userTenant: userTenantId,
+        isExternal,
+        tokenTenant: tokenResponse.tenant_id
+      });
+
+      // Save tokens to database
+      await saveAuthToken(
+        tokenResponse.access_token,
+        tokenResponse.refresh_token,
+        tokenResponse.expires_in,
+        tokenResponse.scope || 'default'
+      );
+
+      console.log('💾 Tokens saved to database successfully');
+      
+      // Redirect with success message and user type info
+      const redirectParams = new URLSearchParams({
+        success: 'true',
+        userType: isExternal ? 'external' : 'internal'
+      });
+      
+      if (userTenantId) {
+        redirectParams.set('tenantId', userTenantId);
+      }
+
+      return Response.redirect(`${process.env.NEXTAUTH_URL}/admin/auth?${redirectParams.toString()}`);
+
+    } catch (tokenError) {
+      console.error('❌ Token exchange failed:', tokenError);
+      
+      let errorMessage = 'token_exchange_failed';
+      
+      if (tokenError instanceof Error) {
+        if (tokenError.message.includes('External tenant authentication failed')) {
+          errorMessage = 'external_tenant_auth_failed';
+        } else if (tokenError.message.includes('AADSTS50020')) {
+          errorMessage = 'external_user_not_found';
+        } else if (tokenError.message.includes('AADSTS65001')) {
+          errorMessage = 'consent_required';
+        }
+      }
+      
+      return Response.redirect(`${process.env.NEXTAUTH_URL}/admin/auth?error=${errorMessage}`);
+    }
+
   } catch (error) {
-    console.error('Teams OAuth callback failed:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return Response.redirect(
-      `${request.nextUrl.origin}/admin/auth?error=${encodeURIComponent(errorMessage)}`
-    );
+    console.error('❌ Callback processing failed:', error);
+    return Response.redirect(`${process.env.NEXTAUTH_URL}/admin/auth?error=callback_failed`);
   }
 } 
