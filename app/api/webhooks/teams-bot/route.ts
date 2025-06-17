@@ -2,13 +2,84 @@ import { NextRequest } from 'next/server';
 import { BotFrameworkAdapter, CardFactory, TurnContext } from 'botbuilder';
 import { executeQuery } from '@/lib/db';
 import { extractTenantFromToken, isExternalUser } from '@/lib/teams';
-import { space } from 'postcss/lib/list';
 
 // Initialize Bot Framework Adapter
 const adapter = new BotFrameworkAdapter({
   appId: process.env.MICROSOFT_APP_ID || '',
   appPassword: process.env.MICROSOFT_APP_PASSWORD || ''
 });
+
+// Helper functions for severity handling
+function getSeverityPrefix(severity: string): string {
+  switch (severity?.toLowerCase()) {
+    case 'critical':
+      return '🔴 Critical';
+    case 'high':
+      return '🟠 High';
+    case 'medium':
+      return '🟡 Medium';
+    case 'low':
+      return '🟢 Low';
+    default:
+      return '🐞';
+  }
+}
+
+function getSeverityColor(severity: string): string {
+  switch (severity?.toLowerCase()) {
+    case 'critical':
+      return 'Attention';
+    case 'high':
+      return 'Warning';
+    case 'medium':
+      return 'Accent';
+    case 'low':
+      return 'Good';
+    default:
+      return 'Default';
+  }
+}
+
+// Helper function to format bug report for copying
+function formatBugReportForCopy(data: any, userContext?: any): string {
+  const submitterInfo = userContext?.isExternal ? 
+    `${userContext.userDisplayName} (${userContext.userType === 'guest' ? 'Guest' : 'External'} User)` :
+    `${userContext?.userDisplayName || 'Unknown User'}`;
+
+  const steps = data.steps || 'No steps provided';
+  let formattedSteps = steps;
+  
+  if (steps !== 'No steps provided') {
+    const stepLines = steps.split('\n')
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.length > 0);
+    
+    if (stepLines.length > 1) {
+      formattedSteps = stepLines.map((step: string, index: number) => 
+        `${index + 1}. ${step}`
+      ).join('\n');
+    }
+  }
+
+  return `**Bug Report**
+
+**Title:** ${data.title || 'No title'}
+**Severity:** ${data.severity || 'Medium'}
+**Environment:** ${data.environment || 'Not specified'}
+**Reporter:** ${submitterInfo}
+
+**Description:**
+${data.description || 'No description provided'}
+
+**Expected Result:**
+${data.expected || 'No expected result provided'}
+
+**Steps to Reproduce:**
+${formattedSteps}
+
+---
+Reported via Teams Quickbug Extension`;
+}
 
 // Enhanced user authentication and tenant detection
 async function getUserContext(context: TurnContext): Promise<{
@@ -215,19 +286,16 @@ function renderBugReportAdaptiveCard(data: any): any {
   const userContext = data._userContext || {};
   
   // Add user attribution to the bug report
-  const submitterInfo = userContext.isExternal ? 
-    `Submitted by: ${userContext.userDisplayName} (${userContext.userType === 'guest' ? 'Guest' : 'External'} User)` :
-    `Submitted by: ${userContext.userDisplayName}`;
-  
+  const submitterInfo = `Submitted by: ${userContext.userDisplayName}`;
   return {
     type: 'AdaptiveCard',
     body: [
       { 
         type: 'TextBlock', 
-        text: '🐞 Bug Report', 
+        text: `${getSeverityPrefix(data.severity)} - Bug Report`,
         weight: 'Bolder', 
         size: 'Large',
-        color: 'Attention',
+        color: getSeverityColor(data.severity),
         horizontalAlignment: 'Center'
       },
       {
@@ -301,13 +369,20 @@ function renderBugReportAdaptiveCard(data: any): any {
         }));
       })()),
       // Add tenant info for external users
-      ...(userContext.isExternal ? [{
-        type: 'TextBlock',
-        text: `🏢 User Tenant: ${userContext.tenantId || 'Unknown'}`,
-        size: 'Small',
-        color: 'Accent',
-        spacing: 'Medium'
-      }] : [])
+      // ...(userContext.isExternal ? [{
+      //   type: 'TextBlock',
+      //   text: `🏢 User Tenant: ${userContext.tenantId || 'Unknown'}`,
+      //   size: 'Small',
+      //   color: 'Accent',
+      //   spacing: 'Medium'
+      // }] : [])
+    ],
+    actions: [
+      {
+        type: 'Action.OpenUrl',
+        title: 'Copy Bug Info',
+        url: `data:text/plain;charset=utf-8,${encodeURIComponent(formatBugReportForCopy(data, userContext))}`
+      }
     ],
     $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
     version: '1.4'
