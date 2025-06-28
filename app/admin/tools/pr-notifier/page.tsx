@@ -89,7 +89,17 @@ export default function PRNotifierPage() {
       if (configResponse.ok) {
         const configData = await configResponse.json();
         if (configData.tool) {
-          setConfig(configData.tool.config || config);
+          // Parse config from JSON string if needed
+          let parsedConfig = configData.tool.config;
+          if (typeof parsedConfig === 'string') {
+            try {
+              parsedConfig = JSON.parse(parsedConfig);
+            } catch (e) {
+              console.error('Failed to parse config JSON:', e);
+              parsedConfig = config; // fallback to default
+            }
+          }
+          setConfig(parsedConfig || config);
           setIsActive(configData.tool.is_active || false);
         }
       }

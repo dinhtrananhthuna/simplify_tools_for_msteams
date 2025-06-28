@@ -1,22 +1,25 @@
-import { Pool, Client } from 'pg';
+import mysql from 'mysql2/promise';
 
 // Singleton pattern cho serverless environment
-let pool: Pool | null = null;
+let pool: mysql.Pool | null = null;
 
-export function getDb(): Pool {
+export function getDb(): mysql.Pool {
   if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: 1, // Minimal connections cho free tier
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    // Use object config for MariaDB connection
+    pool = mysql.createPool({
+      host: process.env.MYSQL_HOST || '103.9.76.10',
+      port: parseInt(process.env.MYSQL_PORT || '3306'),
+      user: process.env.MYSQL_USER || 'oyhumgag_sa',
+      password: process.env.MYSQL_PASSWORD || 'a%PnNf}(%QB_o+*R',
+      database: process.env.MYSQL_DATABASE || 'oyhumgag_mstoolsuite',
+      charset: 'utf8mb4',
+      connectionLimit: 1, // Minimal connections cho serverless
+      connectTimeout: 30000
     });
 
-    // Handle pool errors
-    pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err);
-      pool = null; // Reset pool on error
+    // Handle pool connection
+    pool.on('connection', (connection) => {
+      console.log('MariaDB connection established as id ' + connection.threadId);
     });
   }
 
@@ -35,10 +38,10 @@ export async function closeDb(): Promise<void> {
 export async function testConnection(): Promise<boolean> {
   try {
     const db = getDb();
-    const result = await db.query('SELECT NOW()');
-    return !!result.rows[0];
+    const [rows] = await db.execute('SELECT NOW() as current_time');
+    return Array.isArray(rows) && rows.length > 0;
   } catch (error) {
-    console.error('Database connection test failed:', error);
+    console.error('MariaDB connection test failed:', error);
     return false;
   }
 }
@@ -51,10 +54,10 @@ export async function executeQuery<T = any>(
   const db = getDb();
   
   try {
-    const result = await db.query(query, params);
-    return result.rows;
+    const [rows] = await db.execute(query, params);
+    return rows as T[];
   } catch (error) {
-    console.error('Query execution failed:', { query, params, error });
+    console.error('MariaDB query execution failed:', { query, params, error });
     throw new Error(`Database query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -70,25 +73,22 @@ export async function executeQuerySingle<T = any>(
 
 // Execute transaction
 export async function executeTransaction<T>(
-  callback: (client: Client) => Promise<T>
+  callback: (connection: mysql.PoolConnection) => Promise<T>
 ): Promise<T> {
-  const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  });
+  const db = getDb();
+  const connection = await db.getConnection();
 
   try {
-    await client.connect();
-    await client.query('BEGIN');
+    await connection.beginTransaction();
     
-    const result = await callback(client);
+    const result = await callback(connection);
     
-    await client.query('COMMIT');
+    await connection.commit();
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    await connection.rollback();
     throw error;
   } finally {
-    await client.end();
+    connection.release();
   }
 } 

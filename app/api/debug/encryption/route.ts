@@ -32,12 +32,12 @@ export async function GET() {
     
     // Check actual database token
     console.log('🔍 Checking actual database token...');
-    const dbQuery = await executeQuerySingle<any>(
-      'SELECT refresh_token, access_token, created_at, expires_at FROM auth_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+    const tokens = await executeQuerySingle<any>(
+      'SELECT refresh_token, access_token, created_at, expires_at FROM auth_tokens WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
       ['admin']
     );
     
-    if (!dbQuery) {
+    if (!tokens) {
       return Response.json({
         success: false,
         error: 'No tokens found in database',
@@ -54,7 +54,7 @@ export async function GET() {
     let accessTokenError = null;
     
     try {
-      refreshTokenDecrypt = decryptToken(dbQuery.refresh_token);
+      refreshTokenDecrypt = decryptToken(tokens.refresh_token);
       console.log('✅ Database refresh token decrypt successful');
     } catch (error) {
       refreshTokenError = error instanceof Error ? error.message : 'Unknown error';
@@ -62,7 +62,7 @@ export async function GET() {
     }
     
     try {
-      accessTokenDecrypt = decryptToken(dbQuery.access_token);
+      accessTokenDecrypt = decryptToken(tokens.access_token);
       console.log('✅ Database access token decrypt successful');
     } catch (error) {
       accessTokenError = error instanceof Error ? error.message : 'Unknown error';
@@ -79,17 +79,17 @@ export async function GET() {
         },
         databaseTokens: {
           found: true,
-          createdAt: dbQuery.created_at,
-          expiresAt: dbQuery.expires_at,
+          createdAt: tokens.created_at,
+          expiresAt: tokens.expires_at,
           refreshToken: {
-            encryptedLength: dbQuery.refresh_token?.length || 0,
+            encryptedLength: tokens.refresh_token?.length || 0,
             decryptSuccess: !!refreshTokenDecrypt,
             decryptedLength: refreshTokenDecrypt?.length || 0,
             error: refreshTokenError,
             preview: refreshTokenDecrypt ? refreshTokenDecrypt.substring(0, 20) + '...' : null
           },
           accessToken: {
-            encryptedLength: dbQuery.access_token?.length || 0,
+            encryptedLength: tokens.access_token?.length || 0,
             decryptSuccess: !!accessTokenDecrypt,
             decryptedLength: accessTokenDecrypt?.length || 0,
             error: accessTokenError,

@@ -92,7 +92,7 @@ function validateWebhookSignature(request: NextRequest, body: string): boolean {
 async function getPRNotifierConfig(): Promise<PRNotifierConfig | null> {
   try {
     const result = await executeQuery<{ config: any }>(
-      'SELECT config FROM tools WHERE id = $1 AND is_active = true',
+      'SELECT config FROM tools WHERE id = ? AND is_active = true',
       ['pr-notifier']
     );
     
@@ -112,18 +112,19 @@ async function logWebhookEvent(
   teamsMessageId?: string
 ) {
   try {
-    await executeQuery(
-      `INSERT INTO webhook_logs (tool_id, webhook_source, event_type, payload, status, error_message, teams_message_id, processed_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    await executeQuery(`
+      INSERT INTO webhook_logs 
+      (tool_id, webhook_source, event_type, payload, status, teams_message_id, error_message, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         'pr-notifier',
         'azure-devops',
         eventType,
         JSON.stringify(payload),
         status,
-        error || null,
         teamsMessageId || null,
-        new Date(), // Always set processed_at since we only log final status
+        error || null,
+        new Date(),
       ]
     );
   } catch (error) {

@@ -102,14 +102,13 @@ export async function saveAuthToken(
 
   const query = `
     INSERT INTO auth_tokens (user_id, access_token, refresh_token, expires_at, scope)
-    VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (user_id) 
-    DO UPDATE SET 
-      access_token = EXCLUDED.access_token,
-      refresh_token = EXCLUDED.refresh_token,
-      expires_at = EXCLUDED.expires_at,
-      scope = EXCLUDED.scope,
-      updated_at = NOW()
+    VALUES (?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE 
+      access_token = VALUES(access_token),
+      refresh_token = VALUES(refresh_token),
+      expires_at = VALUES(expires_at),
+      scope = VALUES(scope),
+      updated_at = CURRENT_TIMESTAMP
   `;
 
   await executeQuery(query, [
@@ -131,7 +130,7 @@ export async function getValidAuthToken(): Promise<string | null> {
     const query = `
       SELECT access_token, refresh_token, expires_at, scope, created_at
       FROM auth_tokens 
-      WHERE user_id = $1 
+      WHERE user_id = ? 
       ORDER BY created_at DESC 
       LIMIT 1
     `;
@@ -301,7 +300,7 @@ export async function getRefreshToken(): Promise<string | null> {
   const query = `
     SELECT refresh_token 
     FROM auth_tokens 
-    WHERE user_id = $1 
+    WHERE user_id = ? 
     ORDER BY created_at DESC 
     LIMIT 1
   `;
@@ -335,7 +334,7 @@ export async function getRefreshToken(): Promise<string | null> {
 }
 
 export async function clearAuthTokens(): Promise<void> {
-  await executeQuery('DELETE FROM auth_tokens WHERE user_id = $1', ['admin']);
+  await executeQuery('DELETE FROM auth_tokens WHERE user_id = ?', ['admin']);
 }
 
 // Check if user has valid authentication
@@ -360,7 +359,7 @@ export async function getAuthStatus(): Promise<AuthStatus> {
     const query = `
       SELECT access_token, refresh_token, expires_at, scope, created_at
       FROM auth_tokens 
-      WHERE user_id = $1 
+      WHERE user_id = ? 
       ORDER BY created_at DESC 
       LIMIT 1
     `;

@@ -164,18 +164,19 @@ async function logWebhookEvent(
   userContext?: any
 ) {
   try {
-    await executeQuery(
-      `INSERT INTO webhook_logs (tool_id, webhook_source, event_type, payload, status, error_message, processed_at, user_context)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    await executeQuery(`
+      INSERT INTO webhook_logs 
+      (tool_id, webhook_source, event_type, payload, status, teams_message_id, error_message, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         'quickbug',
         'teams-bot',
         eventType,
         JSON.stringify(payload),
         status,
+        null,
         error || null,
-        new Date(),
-        userContext ? JSON.stringify(userContext) : null,
+        new Date()
       ]
     );
   } catch (logError) {

@@ -27,7 +27,7 @@ interface QuickbugConfig {
 export async function GET() {
   try {
     const result = await executeQuery<QuickbugTool>(
-      'SELECT * FROM tools WHERE id = $1',
+      'SELECT * FROM tools WHERE id = ?',
       ['quickbug']
     );
 
@@ -71,39 +71,24 @@ export async function POST(request: NextRequest) {
 
     // Check if tool exists
     const existing = await executeQuery<QuickbugTool>(
-      'SELECT id FROM tools WHERE id = $1',
+      'SELECT id FROM tools WHERE id = ?',
       ['quickbug']
     );
 
     if (existing.length === 0) {
       // Create new tool
-      await executeQuery(
-        `INSERT INTO tools (id, name, description, icon, category, is_active, config, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          'quickbug',
-          'Quick Bug Reporter',
-          'Teams Message Extension để báo cáo bug nhanh với Adaptive Cards',
-          '🐞',
-          'productivity',
-          is_active,
-          JSON.stringify(config),
-          new Date(),
-          new Date(),
-        ]
+      await executeQuery(`
+        INSERT INTO tools (id, name, description, icon, category, is_active, config, created_at, updated_at, tool_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ['quickbug', 'Quick Bug Reporter', 'Teams Message Extension để báo cáo bug nhanh với Adaptive Cards', '🐞', 'productivity', is_active, JSON.stringify(config), new Date(), new Date(), 'bug_reporter']
       );
     } else {
       // Update existing tool
-      await executeQuery(
-        `UPDATE tools 
-         SET config = $1, is_active = $2, updated_at = $3
-         WHERE id = $4`,
-        [
-          JSON.stringify(config),
-          is_active,
-          new Date(),
-          'quickbug',
-        ]
+      await executeQuery(`
+        UPDATE tools 
+        SET config = ?, is_active = ?, updated_at = ?
+        WHERE id = ?`,
+        [JSON.stringify(config), is_active, new Date(), 'quickbug']
       );
     }
 

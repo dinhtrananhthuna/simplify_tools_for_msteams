@@ -14,14 +14,14 @@ export async function GET(request: NextRequest) {
       `SELECT id, tool_id, webhook_source, event_type, status, error_message, 
               teams_message_id, processed_at, created_at,
               CASE 
-                WHEN LENGTH(payload::text) > 500 
-                THEN CONCAT(LEFT(payload::text, 500), '...[truncated]')
-                ELSE payload::text
+                WHEN LENGTH(JSON_UNQUOTE(payload)) > 500 
+                THEN CONCAT(LEFT(JSON_UNQUOTE(payload), 500), '...[truncated]')
+                ELSE JSON_UNQUOTE(payload)
               END as payload_preview
        FROM webhook_logs 
-       WHERE tool_id = $1
+       WHERE tool_id = ?
        ORDER BY created_at DESC 
-       LIMIT $2`,
+       LIMIT ?`,
       [tool_id, limit]
     );
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const logs = await executeQuery(
-      `SELECT * FROM webhook_logs WHERE id = $1`,
+      `SELECT * FROM webhook_logs WHERE id = ?`,
       [logId]
     );
 

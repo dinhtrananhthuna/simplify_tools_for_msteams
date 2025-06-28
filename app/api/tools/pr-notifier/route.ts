@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const result = await executeQuery<Tool>(
-      'SELECT * FROM tools WHERE id = $1',
+      'SELECT * FROM tools WHERE id = ?',
       ['pr-notifier']
     );
 
@@ -42,8 +42,21 @@ export async function POST(request: NextRequest) {
       is_active: boolean;
     };
 
+    // Ensure config is an object, not a string
+    let parsedConfig = config;
+    if (typeof config === 'string') {
+      try {
+        parsedConfig = JSON.parse(config);
+      } catch (e) {
+        return Response.json({
+          success: false,
+          error: 'Invalid config format',
+        }, { status: 400 });
+      }
+    }
+
     // Validate required fields
-    if (!config.azureDevOpsUrl || !config.targetChatId) {
+    if (!parsedConfig.azureDevOpsUrl || !parsedConfig.targetChatId) {
       return Response.json({
         success: false,
         error: 'Azure DevOps URL and target chat are required',
@@ -52,39 +65,24 @@ export async function POST(request: NextRequest) {
 
     // Check if tool exists
     const existing = await executeQuery<Tool>(
-      'SELECT id FROM tools WHERE id = $1',
+      'SELECT id FROM tools WHERE id = ?',
       ['pr-notifier']
     );
 
     if (existing.length === 0) {
       // Create new tool
-      await executeQuery(
-        `INSERT INTO tools (id, name, description, icon, category, is_active, config, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          'pr-notifier',
-          'Pull Request Notifier',
-          'Tự động thông báo team về pull requests mới từ Azure DevOps',
-          '🔔',
-          'automation',
-          is_active,
-          JSON.stringify(config),
-          new Date(),
-          new Date(),
-        ]
+      await executeQuery(`
+        INSERT INTO tools (id, name, description, icon, category, is_active, config, created_at, updated_at, tool_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)`,
+        ['pr-notifier', 'Pull Request Notifier', 'Tự động thông báo team về pull requests mới từ Azure DevOps', '🔔', 'automation', is_active, JSON.stringify(parsedConfig), 'pr_notifier']
       );
     } else {
       // Update existing tool
-      await executeQuery(
-        `UPDATE tools 
-         SET config = $1, is_active = $2, updated_at = $3
-         WHERE id = $4`,
-        [
-          JSON.stringify(config),
-          is_active,
-          new Date(),
-          'pr-notifier',
-        ]
+      await executeQuery(`
+        UPDATE tools 
+        SET config = ?, is_active = ?, updated_at = NOW()
+        WHERE id = ?`,
+        [JSON.stringify(parsedConfig), is_active, 'pr-notifier']
       );
     }
 
