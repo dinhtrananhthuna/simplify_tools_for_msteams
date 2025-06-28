@@ -63,6 +63,7 @@ const setupProductionDatabase = async () => {
         status TEXT NOT NULL CHECK (status IN ('success', 'failed')),
         error_message TEXT,
         teams_message_id TEXT,
+        user_context JSONB,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);

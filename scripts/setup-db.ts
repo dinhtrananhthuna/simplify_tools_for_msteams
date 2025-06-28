@@ -71,6 +71,7 @@ const createTables = async () => {
         status TEXT NOT NULL CHECK (status IN ('success', 'failed')),
         error_message TEXT,
         teams_message_id TEXT,
+        user_context JSONB,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
@@ -116,6 +117,10 @@ const createTables = async () => {
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_webhook_logs_tool_created ON webhook_logs(tool_id, created_at DESC);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_webhook_logs_user_context ON webhook_logs USING GIN (user_context);
     `);
 
     console.log('✅ All indexes created');
