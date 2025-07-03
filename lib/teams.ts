@@ -379,7 +379,7 @@ export class TeamsClient {
     if (isChannel) {
       endpoint = `/teams/${target.teamId}/channels/${target.id}/messages`;
       if (contentType === 'adaptiveCard') {
-        // For channels, Adaptive Cards are sent as attachments
+        // For channels, Adaptive Cards should also include body content for better compatibility
         let cardContent;
         if (message && typeof message === 'object') {
           // If message already has contentType and content structure, use the content part
@@ -396,11 +396,38 @@ export class TeamsClient {
           cardContent = message;
         }
         
+        // IMPORTANT: Graph API expects content to be JSON string, not object
+        const cardContentString = typeof cardContent === 'string' ? cardContent : JSON.stringify(cardContent);
+        
+        // Generate unique attachment ID first
+        const attachmentId = `adaptive-card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Extract card title for fallback body content
+        let fallbackText = 'Adaptive Card';
+        try {
+          const cardObj = typeof cardContent === 'object' ? cardContent : JSON.parse(cardContentString);
+          // Try to find first TextBlock for preview
+          const firstTextBlock = cardObj.body?.find((element: any) => element.type === 'TextBlock');
+          if (firstTextBlock?.text) {
+            fallbackText = firstTextBlock.text.length > 100 
+              ? firstTextBlock.text.substring(0, 100) + '...'
+              : firstTextBlock.text;
+          }
+        } catch (e) {
+          // Fallback if parsing fails
+          fallbackText = 'Adaptive Card notification';
+        }
+        
         body = {
+          body: {
+            contentType: 'html',
+            content: `${fallbackText}<attachment id="${attachmentId}"></attachment>`, // Include attachment marker
+          },
           attachments: [
             {
+              id: attachmentId,
               contentType: 'application/vnd.microsoft.card.adaptive',
-              content: cardContent, // Must be object, not string!
+              content: cardContentString, // Must be JSON string for Graph API!
             },
           ],
         };
@@ -416,7 +443,7 @@ export class TeamsClient {
       // This is a 1-on-1 or group chat
       endpoint = `/chats/${target.id}/messages`;
       if (contentType === 'adaptiveCard') {
-        // For chats, Adaptive Cards must be sent as attachments
+        // For chats, Adaptive Cards need both body content AND attachments
         let cardContent;
         if (message && typeof message === 'object') {
           // If message already has contentType and content structure, use the content part
@@ -433,11 +460,38 @@ export class TeamsClient {
           cardContent = message;
         }
         
+        // IMPORTANT: Graph API expects content to be JSON string, not object
+        const cardContentString = typeof cardContent === 'string' ? cardContent : JSON.stringify(cardContent);
+        
+        // Generate unique attachment ID first
+        const attachmentId = `adaptive-card-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Extract card title for fallback body content
+        let fallbackText = 'Adaptive Card';
+        try {
+          const cardObj = typeof cardContent === 'object' ? cardContent : JSON.parse(cardContentString);
+          // Try to find first TextBlock for preview
+          const firstTextBlock = cardObj.body?.find((element: any) => element.type === 'TextBlock');
+          if (firstTextBlock?.text) {
+            fallbackText = firstTextBlock.text.length > 100 
+              ? firstTextBlock.text.substring(0, 100) + '...'
+              : firstTextBlock.text;
+          }
+        } catch (e) {
+          // Fallback if parsing fails
+          fallbackText = 'Adaptive Card notification';
+        }
+        
         body = {
+          body: {
+            contentType: 'html',
+            content: `${fallbackText}<attachment id="${attachmentId}"></attachment>`, // Include attachment marker
+          },
           attachments: [
             {
+              id: attachmentId,
               contentType: 'application/vnd.microsoft.card.adaptive',
-              content: cardContent, // Must be object, not string!
+              content: cardContentString, // Must be JSON string for Graph API!
             },
           ],
         };
@@ -453,6 +507,21 @@ export class TeamsClient {
 
     console.log(`📤 Sending message to endpoint: ${endpoint}`);
     console.log(`📝 Target info: ID=${target.id}, Type=${target.type || 'unknown'}, TeamID=${target.teamId || 'none'}`);
+    
+    // Debug payload structure for Adaptive Cards
+    if (contentType === 'adaptiveCard') {
+      console.log('🔍 [DEBUG] Adaptive Card payload structure:', {
+        hasBody: !!body.body,
+        hasAttachments: !!body.attachments,
+        bodyContentType: body.body?.contentType,
+        bodyContentLength: body.body?.content?.length,
+        attachmentsCount: body.attachments?.length,
+        attachmentContentType: body.attachments?.[0]?.contentType,
+        attachmentContentLength: body.attachments?.[0]?.content?.length,
+        attachmentId: body.attachments?.[0]?.id,
+        bodyIncludesAttachmentMarker: body.body?.content?.includes('<attachment id=')
+      });
+    }
 
     try {
       const response = await this.makeRequest(endpoint, {
