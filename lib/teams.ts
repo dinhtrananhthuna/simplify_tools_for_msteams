@@ -11,6 +11,8 @@ const TEAMS_CONFIG = {
     'https://graph.microsoft.com/TeamMember.Read.All',
     'https://graph.microsoft.com/User.Read',
     'https://graph.microsoft.com/Team.ReadBasic.All',
+    'https://graph.microsoft.com/Group.Read.All',
+    'https://graph.microsoft.com/ChannelSettings.Read.All',
   ],
   redirectUri: process.env.NEXTAUTH_URL 
     ? `${process.env.NEXTAUTH_URL}/api/auth/teams/callback`
@@ -313,7 +315,7 @@ export class TeamsClient {
           // In oneOnOne chat, find the other person's name
           if (chat.chatType === 'oneOnOne') {
             // Note: this is not reliable for getting current user's ID
-            const otherMember = chat.members.find((m: any) => m.userId !== this.accessToken);
+            const otherMember = chat.members?.find((m: any) => m.userId !== this.accessToken);
             chatName = otherMember?.displayName || '1-on-1 Chat';
           } else {
             chatName = chat.topic || 'Group Chat';
@@ -331,20 +333,25 @@ export class TeamsClient {
       // Process Team channels
       if (teams && Array.isArray(teams)) {
         const channelPromises = teams.map(async (team: any) => {
-          const channelsResponse = await this.makeRequest(
-            `/teams/${team.id}/channels?$select=id,displayName,createdDateTime`
-          );
-          const channels = channelsResponse?.value;
-          if (channels && Array.isArray(channels)) {
-            return channels.map((channel: any) => ({
-              id: channel.id,
-              teamId: team.id,
-              displayName: `${team.displayName} > ${channel.displayName}`,
-              type: 'channel',
-              createdDateTime: channel.createdDateTime,
-            }));
+          try {
+            const channelsResponse = await this.makeRequest(
+              `/teams/${team.id}/channels?$select=id,displayName,createdDateTime`
+            );
+            const channels = channelsResponse?.value;
+            if (channels && Array.isArray(channels)) {
+              return channels.map((channel: any) => ({
+                id: channel.id,
+                teamId: team.id,
+                displayName: `${team.displayName} > ${channel.displayName}`,
+                type: 'channel',
+                createdDateTime: channel.createdDateTime,
+              }));
+            }
+            return [];
+          } catch (error) {
+            console.error(`❌ [TeamsClient] Failed to get channels for team ${team.displayName}:`, error);
+            return [];
           }
-          return [];
         });
 
         const channelsByTeam = await Promise.all(channelPromises);
@@ -363,7 +370,7 @@ export class TeamsClient {
     target: { id: string; type?: string; teamId?: string },
     message: any,
     contentType: 'adaptiveCard' | 'text' | 'html' = 'html'
-  ) {
+  ): Promise<string> {
     let endpoint: string;
     let body: any;
 
@@ -415,6 +422,7 @@ export class TeamsClient {
     }
 
     console.log(`📤 Sending message to endpoint: ${endpoint}`);
+    console.log(`📝 Target info: ID=${target.id}, Type=${target.type || 'unknown'}, TeamID=${target.teamId || 'none'}`);
 
     try {
       const response = await this.makeRequest(endpoint, {
@@ -430,6 +438,45 @@ export class TeamsClient {
     } catch (error) {
       const errorResponse = error instanceof Error ? error.message : 'Unknown error';
       console.error(`❌ Failed to send message to ${endpoint}:`, errorResponse);
+      
+      // If sending to chat fails with "Invalid ThreadId" error, this might be a channel
+      if (errorResponse.includes('Invalid ThreadId') && !isChannel) {
+        console.log('🔄 ThreadId error detected - this might be a channel. Attempting to find the right team...');
+        
+        try {
+          // Try to find which team this channel belongs to
+          const teamsResponse = await this.makeRequest('/me/joinedTeams?$select=id,displayName');
+          const teams = teamsResponse?.value;
+          
+          if (teams && Array.isArray(teams)) {
+            for (const team of teams) {
+              try {
+                // List all channels in this team to find the one that matches our conversation ID
+                const channelsResponse = await this.makeRequest(`/teams/${team.id}/channels`);
+                const channels = channelsResponse?.value || [];
+                
+                for (const channel of channels) {
+                  // Check if this channel's conversation thread ID matches our target ID
+                  if (channel.id === target.id) {
+                    console.log(`✅ Found channel ${target.id} in team ${team.displayName} (${team.id})`);
+                    
+                    // Retry sending as channel
+                    const channelTarget = { ...target, type: 'channel', teamId: team.id };
+                    return this.sendMessage(channelTarget, message, contentType);
+                  }
+                }
+              } catch (channelError) {
+                // Channels not accessible in this team, continue searching
+                console.log(`❌ Cannot access channels in team ${team.displayName}: ${channelError instanceof Error ? channelError.message : String(channelError)}`);
+                continue;
+              }
+            }
+          }
+        } catch (retryError) {
+          console.error('❌ Failed to auto-detect channel team:', retryError);
+        }
+      }
+      
       // Re-throw with more context
       throw new Error(`Graph API error: ${errorResponse}`);
     }
@@ -457,76 +504,15 @@ export async function getUserInfo() {
 }
 
 export async function getTeamsChats(limit: number = 3) {
-  console.log(`🔍 Getting ${limit} chats with Teams client...`);
-  
+  console.log(`[getTeamsChats] Getting up to ${limit} chats via TeamsClient...`);
   try {
     const client = await TeamsClient.create();
-    const response = await client.getChats(limit);
-    
-    // Lấy thông tin user hiện tại để filter oneOnOne chats
-    let currentUserId = null;
-    try {
-      const userInfo = await client.getUserInfo();
-      currentUserId = userInfo.id;
-      console.log(`👤 Current user: ${userInfo.displayName} (ID: ${currentUserId})`);
-    } catch (error) {
-      console.log('⚠️ Could not get current user info');
-    }
-    
-    return response.value?.map((chat: any) => {
-      let displayName = chat.topic;
-      
-      // Nếu là oneOnOne chat và không có topic, hiển thị tên người đối thoại
-      if (chat.chatType === 'oneOnOne' && !displayName && chat.members) {
-        // Tìm member không phải là chính mình (current user)
-        const otherMember = chat.members.find((member: any) => 
-          member.userId && 
-          member.displayName && 
-          member.userId !== currentUserId &&
-          !member.displayName.includes('Application') &&
-          !member.displayName.includes('Bot')
-        );
-        
-        if (otherMember) {
-          displayName = `${otherMember.displayName}`;
-          console.log(`💬 OneOnOne chat: ${displayName} (ID: ${otherMember.userId})`);
-        } else {
-          console.log(`⚠️ Could not find other member in oneOnOne chat:`, chat.members);
-        }
-      }
-      
-      // Fallback cho các trường hợp khác
-      if (!displayName) {
-        switch (chat.chatType) {
-          case 'oneOnOne':
-            displayName = '1:1 Chat';
-            break;
-          case 'group':
-            const memberCount = chat.members?.length || 0;
-            displayName = chat.topic || `Group Chat (${memberCount} members)`;
-            break;
-          case 'meeting':
-            displayName = chat.topic || 'Meeting Chat';
-            break;
-          default:
-            displayName = `${chat.chatType} Chat`;
-        }
-      }
-      
-      return {
-        id: chat.id,
-        displayName,
-        chatType: chat.chatType,
-        memberCount: chat.members?.length || 0,
-        members: chat.members?.map((member: any) => ({
-          id: member.userId,
-          displayName: member.displayName,
-          email: member.email
-        })) || []
-      };
-    }) || [];
+    // The client.getChats method now returns the processed array of conversations directly.
+    // No need to access .value or map it again here, as that's already handled inside the client.
+    const chats = await client.getChats(limit);
+    return chats;
   } catch (error) {
-    console.error('❌ Failed to get chats:', error);
+    console.error('❌ Failed to get chats in legacy helper function:', error);
     throw error;
   }
 }

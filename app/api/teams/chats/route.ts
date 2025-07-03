@@ -20,6 +20,12 @@ export async function GET(request: Request) {
     
     const chats = await Promise.race([chatsPromise, timeoutPromise]);
     
+    if (!Array.isArray(chats)) {
+      // This can happen if the timeout promise wins, but the error is caught below.
+      // Or if for some reason the result is not an array.
+      throw new Error("Failed to retrieve a valid list of chats.");
+    }
+    
     console.log('✅ API: Successfully retrieved chats (simple fetch)');
     return Response.json({
       success: true,

@@ -1,4 +1,4 @@
-import { TeamsClient } from '../lib/teams';
+const { TeamsClient } = require('../lib/teams');
 
 async function validateChatId() {
   try {
@@ -27,7 +27,7 @@ async function validateChatId() {
     console.log('\n📋 Available chats:');
     try {
       const chatsResponse = await client.getChats(10);
-      const chats = chatsResponse.value || [];
+      const chats = chatsResponse || [];
       
       console.log(`Found ${chats.length} chats:`);
       chats.forEach((chat: any) => {
@@ -66,9 +66,11 @@ async function validateChatId() {
         }
       };
       
-      const result = await client.sendMessage(chatId, testMessage, 'text');
+      // Use the new target object format
+      const target = { id: chatId, type: 'group' }; // Assume it's a group chat for testing
+      const result = await client.sendMessage(target, testMessage, 'text');
       console.log('✅ Test message sent successfully!');
-      console.log('Message ID:', result.id);
+      console.log('Message ID:', result);
       
     } catch (error) {
       console.log('❌ Failed to send test message:', error);

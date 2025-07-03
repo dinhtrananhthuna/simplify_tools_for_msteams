@@ -96,14 +96,55 @@ function validateWebhookSignature(request: NextRequest, body: string): boolean {
 // Get PR Notifier configuration
 async function getPRNotifierConfig(): Promise<PRNotifierConfig | null> {
   try {
+    console.log('📋 [WEBHOOK] Querying database for PR Notifier config...');
     const result = await executeQuery<{ config: any }>(
       'SELECT config FROM tools WHERE id = ? AND is_active = true',
       ['pr-notifier']
     );
     
-    return result[0]?.config || null;
+    if (!result || result.length === 0) {
+      console.log('❌ [WEBHOOK] No active PR Notifier found in database');
+      return null;
+    }
+    
+    let config = result[0]?.config;
+    console.log('📊 [WEBHOOK] Raw config from database:', typeof config, JSON.stringify(config));
+    
+    if (!config) {
+      console.log('❌ [WEBHOOK] Config is null/undefined');
+      return null;
+    }
+    
+    // Handle double-encoded JSON strings
+    if (typeof config === 'string') {
+      try {
+        console.log('🔄 [WEBHOOK] Parsing config string...');
+        config = JSON.parse(config);
+        console.log('✅ [WEBHOOK] First parse successful, type:', typeof config);
+        
+        // Check if it's still a string (double-encoded)
+        if (typeof config === 'string') {
+          console.log('🔄 [WEBHOOK] Config is still string, parsing again...');
+          config = JSON.parse(config);
+          console.log('✅ [WEBHOOK] Second parse successful, type:', typeof config);
+        }
+      } catch (parseError) {
+        console.error('❌ [WEBHOOK] Failed to parse config JSON:', parseError);
+        return null;
+      }
+    }
+    
+    console.log('📊 [WEBHOOK] Final parsed config:', JSON.stringify(config, null, 2));
+    console.log('🔍 [WEBHOOK] Config validation:', {
+      hasTargetChat: !!config?.targetChat,
+      hasTargetChatId: !!config?.targetChatId,
+      targetChatId: config?.targetChat?.id || config?.targetChatId,
+      targetChatType: config?.targetChat?.type
+    });
+    
+    return config;
   } catch (error) {
-    console.error('Failed to get PR notifier config:', error);
+    console.error('❌ [WEBHOOK] Failed to get PR notifier config:', error);
     return null;
   }
 }
@@ -141,15 +182,28 @@ export async function POST(request: NextRequest) {
   let webhookLogged = false; // Track if webhook has been logged
   
   try {
+    console.log('🔔 [WEBHOOK] Azure DevOps webhook triggered');
+    console.log('⏰ [WEBHOOK] Timestamp:', new Date().toISOString());
+    console.log('🌐 [WEBHOOK] Request URL:', request.url);
+    console.log('📋 [WEBHOOK] Request method:', request.method);
+    console.log('🔑 [WEBHOOK] Headers:', Object.fromEntries(request.headers.entries()));
+    
     // Parse request body
+    console.log('📝 [WEBHOOK] Parsing request body...');
     const body = await request.text();
+    console.log('📏 [WEBHOOK] Body length:', body.length, 'characters');
+    console.log('📄 [WEBHOOK] Body preview (first 200 chars):', body.substring(0, 200));
     let webhookData: any;
     
     try {
+      console.log('🔄 [WEBHOOK] Attempting JSON parsing...');
       const parsedBody = JSON.parse(body);
       webhookData = parsedBody; // Use flexible parsing for now
+      console.log('✅ [WEBHOOK] JSON parsing successful');
+      console.log('📊 [WEBHOOK] Event type:', webhookData.eventType);
+      console.log('📊 [WEBHOOK] Resource type:', webhookData.resource?.resourceType || 'unknown');
     } catch (error) {
-      console.error('❌ JSON parsing failed:', error);
+      console.error('❌ [WEBHOOK] JSON parsing failed:', error);
       
       // Log parsing failure
       await logWebhookEvent('unknown', { error: 'JSON parsing failed' }, 'failed', 'Invalid JSON format');
@@ -162,9 +216,12 @@ export async function POST(request: NextRequest) {
     }
     
     // Validate webhook signature (optional for development)
+    console.log('🔐 [WEBHOOK] Validating webhook signature...');
     const signatureValid = validateWebhookSignature(request, body);
+    console.log('🔐 [WEBHOOK] Signature valid:', signatureValid, '(NODE_ENV:', process.env.NODE_ENV, ')');
+    
     if (!signatureValid && process.env.NODE_ENV === 'production') {
-      console.error('❌ Invalid webhook signature');
+      console.error('❌ [WEBHOOK] Invalid webhook signature');
       
       // Log signature validation failure
       await logWebhookEvent(webhookData.eventType || 'unknown', webhookData, 'failed', 'Invalid signature');
@@ -177,7 +234,15 @@ export async function POST(request: NextRequest) {
     }
     
     // Only process pull request events
+    console.log('🔍 [WEBHOOK] Checking event type for PR events...');
+    console.log('🔍 [WEBHOOK] Event type check:', {
+      eventType: webhookData.eventType,
+      includesPullrequest: webhookData.eventType?.includes('pullrequest'),
+      includesGitPullrequest: webhookData.eventType?.includes('git.pullrequest')
+    });
+    
     if (!webhookData.eventType?.includes('pullrequest') && !webhookData.eventType?.includes('git.pullrequest')) {
+      console.log('⚠️ [WEBHOOK] Event is not a PR event, skipping processing');
       await logWebhookEvent(
         webhookData.eventType || 'unknown', 
         webhookData, 
@@ -193,8 +258,17 @@ export async function POST(request: NextRequest) {
     }
     
     // Get PR Notifier configuration
+    console.log('⚙️ [WEBHOOK] Getting PR Notifier configuration...');
     const config = await getPRNotifierConfig();
+    console.log('⚙️ [WEBHOOK] Config result:', {
+      hasConfig: !!config,
+      hasTargetChat: !!config?.targetChat,
+      hasTargetChatId: !!config?.targetChatId,
+      configPreview: config ? JSON.stringify(config, null, 2) : 'null'
+    });
+    
     if (!config || (!config.targetChat && !config.targetChatId)) {
+      console.log('❌ [WEBHOOK] No valid PR Notifier configuration found');
       await logWebhookEvent(
         webhookData.eventType || 'unknown',
         webhookData,

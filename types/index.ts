@@ -175,7 +175,7 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
 export interface TeamsMessageTarget {
   id: string;
   displayName?: string;
-  type: 'group' | 'oneOnOne' | 'channel';
+  type?: 'group' | 'oneOnOne' | 'channel';
   teamId?: string;
 }
 
