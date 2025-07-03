@@ -10,6 +10,7 @@ const TEAMS_CONFIG = {
     'https://graph.microsoft.com/Chat.ReadWrite',
     'https://graph.microsoft.com/TeamMember.Read.All',
     'https://graph.microsoft.com/User.Read',
+    'https://graph.microsoft.com/Team.ReadBasic.All',
   ],
   redirectUri: process.env.NEXTAUTH_URL 
     ? `${process.env.NEXTAUTH_URL}/api/auth/teams/callback`
@@ -248,9 +249,13 @@ export class TeamsClient {
   }
 
   private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-    const url = `https://graph.microsoft.com/v1.0${endpoint}`;
-    
-    const response = await fetch(url, {
+    const fullUrl = endpoint.startsWith('https://') 
+      ? endpoint
+      : `https://graph.microsoft.com/v1.0${endpoint}`;
+      
+    console.log(`[TeamsClient] Making request to: ${fullUrl}`);
+
+    const response = await fetch(fullUrl, {
       ...options,
       headers: {
         'Authorization': `Bearer ${this.accessToken}`,
@@ -261,10 +266,24 @@ export class TeamsClient {
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`[TeamsClient] Graph API error: ${response.status} ${response.statusText}`, errorText);
       throw new Error(`Graph API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    return response.json();
+    // Handle cases where response might be empty (e.g., 204 No Content)
+    const text = await response.text();
+    if (!text) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      // If it's not JSON, it could be a different type of response.
+      // For now, we'll just log and return the raw text.
+      console.warn('[TeamsClient] Response was not valid JSON, returning raw text.');
+      return text;
+    }
   }
 
   async getUserInfo() {
@@ -272,48 +291,148 @@ export class TeamsClient {
     return this.makeRequest('/me');
   }
 
-  async getChats(limit: number = 3) {
-    console.log(`📋 Getting ${limit} chats with members info...`);
-    return this.makeRequest(`/me/chats?$top=${limit}&$select=id,topic,chatType,members&$expand=members`);
+  async getChats(limit: number = 50) {
+    console.log(`🔍 [TeamsClient] Getting up to ${limit} chats...`);
+
+    try {
+      // Get chats the user is part of & teams they've joined
+      const [chatsResponse, teamsResponse] = await Promise.all([
+        this.makeRequest(
+          `/chats?$top=${limit}&$expand=members&$select=id,chatType,topic,members,createdDateTime`
+        ),
+        this.makeRequest('/me/joinedTeams?$select=id,displayName'),
+      ]);
+
+      const allConversations: any[] = [];
+
+      const chats = chatsResponse?.value;
+      // Process 1-on-1 and group chats
+      if (chats && Array.isArray(chats)) {
+        for (const chat of chats) {
+          let chatName: string;
+          // In oneOnOne chat, find the other person's name
+          if (chat.chatType === 'oneOnOne') {
+            // Note: this is not reliable for getting current user's ID
+            const otherMember = chat.members.find((m: any) => m.userId !== this.accessToken);
+            chatName = otherMember?.displayName || '1-on-1 Chat';
+          } else {
+            chatName = chat.topic || 'Group Chat';
+          }
+          allConversations.push({
+            id: chat.id,
+            displayName: chatName,
+            type: chat.chatType, // 'oneOnOne' or 'group'
+            createdDateTime: chat.createdDateTime,
+          });
+        }
+      }
+
+      const teams = teamsResponse?.value;
+      // Process Team channels
+      if (teams && Array.isArray(teams)) {
+        const channelPromises = teams.map(async (team: any) => {
+          const channelsResponse = await this.makeRequest(
+            `/teams/${team.id}/channels?$select=id,displayName,createdDateTime`
+          );
+          const channels = channelsResponse?.value;
+          if (channels && Array.isArray(channels)) {
+            return channels.map((channel: any) => ({
+              id: channel.id,
+              teamId: team.id,
+              displayName: `${team.displayName} > ${channel.displayName}`,
+              type: 'channel',
+              createdDateTime: channel.createdDateTime,
+            }));
+          }
+          return [];
+        });
+
+        const channelsByTeam = await Promise.all(channelPromises);
+        channelsByTeam.flat().forEach(channel => allConversations.push(channel));
+      }
+      
+      console.log(`✅ [TeamsClient] Found ${allConversations.length} conversations.`);
+      return allConversations;
+    } catch (error) {
+      console.error('❌ [TeamsClient] Failed to get chats:', error);
+      throw error;
+    }
   }
 
-  async sendMessage(chatId: string, message: string | any, contentType: 'text' | 'html' | 'adaptiveCard' = 'html') {
-    console.log(`📤 Sending message to chat: ${chatId}`);
-    
-    let messagePayload: any;
-    
-    if (contentType === 'adaptiveCard' && typeof message === 'object') {
-      // Generate unique ID for attachment (required by Graph API)
-      const attachmentId = crypto.randomUUID();
-      
-      // Send Adaptive Card with correct Graph API format (content phải là string)
-      messagePayload = {
-        body: {
-          content: `<attachment id=\"${attachmentId}\"></attachment>`,
-          contentType: 'html',
-        },
-        attachments: [{
-          id: attachmentId,
-          contentType: message.contentType || "application/vnd.microsoft.card.adaptive",
-          content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content || message)
-        }]
-      };
-      
-      console.log('📋 Adaptive Card payload:', JSON.stringify(messagePayload, null, 2));
+  async sendMessage(
+    target: { id: string; type?: string; teamId?: string },
+    message: any,
+    contentType: 'adaptiveCard' | 'text' | 'html' = 'html'
+  ) {
+    let endpoint: string;
+    let body: any;
+
+    const isChannel = target.type === 'channel' && target.teamId;
+
+    if (isChannel) {
+      endpoint = `/teams/${target.teamId}/channels/${target.id}/messages`;
+      if (contentType === 'adaptiveCard') {
+        const attachmentId = crypto.randomUUID();
+        body = {
+          body: {
+            contentType: 'html',
+            content: `<attachment id="${attachmentId}"></attachment>`,
+          },
+          attachments: [
+            {
+              id: attachmentId,
+              contentType: 'application/vnd.microsoft.card.adaptive',
+              content: JSON.stringify(message),
+            },
+          ],
+        };
+      } else {
+        body = {
+          body: {
+            contentType: contentType,
+            content: message,
+          },
+        };
+      }
     } else {
-      // Send regular text/html message
-      messagePayload = {
-        body: {
-          content: typeof message === 'string' ? message : JSON.stringify(message),
-          contentType: contentType === 'adaptiveCard' ? 'html' : contentType,
-        },
-      };
+      // This is a 1-on-1 or group chat
+      endpoint = `/chats/${target.id}/messages`;
+      if (contentType === 'adaptiveCard') {
+        body = {
+          body: {
+            contentType: 'application/vnd.microsoft.card.adaptive',
+            content: JSON.stringify(message),
+          },
+        };
+      } else {
+        body = {
+          body: {
+            contentType: contentType,
+            content: message,
+          },
+        };
+      }
     }
-    
-    return this.makeRequest(`/chats/${chatId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify(messagePayload),
-    });
+
+    console.log(`📤 Sending message to endpoint: ${endpoint}`);
+
+    try {
+      const response = await this.makeRequest(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      
+      console.log('✅ Message sent successfully');
+      return response.id;
+    } catch (error) {
+      const errorResponse = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`❌ Failed to send message to ${endpoint}:`, errorResponse);
+      // Re-throw with more context
+      throw new Error(`Graph API error: ${errorResponse}`);
+    }
   }
 }
 
@@ -412,18 +531,28 @@ export async function getTeamsChats(limit: number = 3) {
   }
 }
 
-export async function sendTeamsMessage(chatId: string, message: string | any, contentType: 'text' | 'html' | 'adaptiveCard' = 'html') {
-  console.log(`📤 Sending message with Teams client...`);
+/**
+ * Sends a message to a Teams chat or channel.
+ * @param target - The target conversation.
+ * @param message - The message content (string for text/html, JSON object for Adaptive Card).
+ * @param contentType - The type of message content.
+ * @returns The ID of the sent message.
+ */
+export interface TeamsMessageTarget {
+  id: string;
+  type?: 'channel' | 'group' | 'oneOnOne';
+  teamId?: string;
+}
+
+export async function sendTeamsMessage(
+  target: TeamsMessageTarget,
+  message: string | any,
+  contentType: 'text' | 'html' | 'adaptiveCard' = 'html'
+) {
+  console.log(`🚀 Sending message to target: ${target.id} (Type: ${target.type || 'chat'}, Content: ${contentType})`);
   
-  try {
-    const client = await TeamsClient.create();
-    const result = await client.sendMessage(chatId, message, contentType);
-    
-    return result.id;
-  } catch (error) {
-    console.error('❌ Failed to send message:', error);
-    throw error;
-  }
+  const client = await TeamsClient.create();
+  return client.sendMessage(target, message, contentType);
 }
 
 // ============ Legacy Aliases (for backward compatibility) ============

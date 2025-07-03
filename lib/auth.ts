@@ -204,6 +204,7 @@ export async function getValidAuthToken(): Promise<string | null> {
         console.log('💾 New tokens saved to database');
         
         // Return the fresh access token directly (it's not encrypted yet)
+        // IMPORTANT: Return raw token after refresh, don't try to decrypt it
         console.log('✅ Token refresh completed successfully');
         return tokens.access_token;
       } catch (refreshError) {
@@ -223,18 +224,69 @@ export async function getValidAuthToken(): Promise<string | null> {
 
     // Token is still valid, decrypt and return
     console.log('🔓 Decrypting valid access token...');
+    console.log('🔍 Access token preview (first 20 chars):', result.access_token?.substring(0, 20) + '...');
+    
     try {
       const token = decryptToken(result.access_token);
       if (!token) {
-        console.error('❌ Failed to decrypt access token');
+        console.error('❌ Failed to decrypt access token - empty result');
         return null;
       }
       
-      console.log('✅ Using existing valid token');
+      console.log('✅ Using existing valid token (decrypted length:', token.length, ')');
       return token;
     } catch (decryptError) {
       console.error('❌ Failed to decrypt access token:', decryptError);
-      return null;
+      console.error('🔍 Token appears to be corrupt or encrypted with different key');
+      
+      // If decryption fails, token might be:
+      // 1. Raw JWT token saved after refresh
+      // 2. Encrypted with old/different encryption key
+      // 3. Corrupted data
+      
+      try {
+        console.log('🔄 Attempting to handle corrupt token...');
+        
+        // Test if this is a valid JWT token (starts with 'eyJ')
+        if (result.access_token.startsWith('eyJ')) {
+          console.log('📝 Detected raw JWT token, re-encrypting...');
+          
+          // Re-encrypt and save the token properly
+          const encryptedToken = encryptToken(result.access_token);
+          await executeQuery(
+            'UPDATE auth_tokens SET access_token = ? WHERE user_id = ?',
+            [encryptedToken, 'admin']
+          );
+          
+          console.log('✅ Token re-encrypted and saved');
+          return result.access_token; // Return the raw token this time
+        }
+        
+        // If it's encrypted but can't decrypt (old key or corrupt), clear tokens
+        if (result.access_token.startsWith('U2FsdGVkX1/')) {
+          console.log('🧹 Detected encrypted token with incompatible key/format, clearing...');
+          await clearAuthTokens();
+          console.log('✅ Cleared corrupt tokens, user needs to re-authenticate');
+          return null;
+        }
+        
+        console.log('❓ Unknown token format, clearing for safety...');
+        await clearAuthTokens();
+        return null;
+        
+      } catch (fixError) {
+        console.error('❌ Failed to fix corrupt token:', fixError);
+        
+        // As last resort, clear all tokens to force re-authentication
+        try {
+          await clearAuthTokens();
+          console.log('🧹 Cleared all tokens due to unfixable corruption');
+        } catch (clearError) {
+          console.error('❌ Failed to clear tokens:', clearError);
+        }
+        
+        return null;
+      }
     }
   } catch (dbError) {
     console.error('❌ Database error in getValidAuthToken:', dbError);

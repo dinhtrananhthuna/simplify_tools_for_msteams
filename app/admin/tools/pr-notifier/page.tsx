@@ -17,23 +17,17 @@ import {
   ButtonLoading,
   PageLoadingTemplate
 } from "@/components/templates/page-template";
+import type { TeamsMessageTarget } from '@/lib/teams';
 
-interface TeamsChat {
-  id: string;
+// More descriptive name for chats/channels
+type TeamsConversation = TeamsMessageTarget & {
   displayName: string;
-  chatType: string;
-  memberCount: number;
-  members: Array<{
-    id: string;
-    displayName: string;
-    email?: string;
-  }>;
-}
+};
 
 interface PRNotifierConfig {
   azureDevOpsUrl: string;
-  targetChatId: string;
-  messageTemplate?: string;
+  targetChatId?: string; // for backward compatibility
+  targetChat?: TeamsConversation | null;
   enableMentions: boolean;
   mentionUsers: string[];
 }
@@ -52,13 +46,12 @@ export default function PRNotifierPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ isAuthenticated: false });
-  const [teamsChats, setTeamsChats] = useState<TeamsChat[]>([]);
+  const [teamsChats, setTeamsChats] = useState<TeamsConversation[]>([]);
   const [chatsLoading, setChatsLoading] = useState(false);
   const [chatsError, setChatsError] = useState<string | null>(null);
   const [config, setConfig] = useState<PRNotifierConfig>({
     azureDevOpsUrl: '',
-    targetChatId: '',
-    messageTemplate: '',
+    targetChat: null,
     enableMentions: false,
     mentionUsers: [],
   });
@@ -89,17 +82,30 @@ export default function PRNotifierPage() {
       if (configResponse.ok) {
         const configData = await configResponse.json();
         if (configData.tool) {
-          // Parse config from JSON string if needed
           let parsedConfig = configData.tool.config;
           if (typeof parsedConfig === 'string') {
             try {
               parsedConfig = JSON.parse(parsedConfig);
             } catch (e) {
               console.error('Failed to parse config JSON:', e);
-              parsedConfig = config; // fallback to default
+              parsedConfig = {};
             }
           }
-          setConfig(parsedConfig || config);
+          
+          // Handle backward compatibility for old config with only targetChatId
+          if (parsedConfig.targetChatId && !parsedConfig.targetChat) {
+            console.log('🔄 Old config format detected, needs upgrade.');
+            // We can't fully reconstruct the targetChat object here.
+            // The user will need to re-select the chat.
+            // We'll mark it so the UI can show a message.
+            parsedConfig.targetChat = {
+              id: parsedConfig.targetChatId,
+              displayName: `⚠️ Please re-select this chat`,
+              type: 'group' // assumption
+            };
+          }
+          
+          setConfig(prev => ({ ...prev, ...parsedConfig }));
           setIsActive(configData.tool.is_active || false);
         }
       }
@@ -122,6 +128,18 @@ export default function PRNotifierPage() {
       if (chatsResponse.ok && chatsData.success) {
         setTeamsChats(chatsData.chats || []);
         
+        // After loading chats, if config is in old format, try to find the full object
+        setConfig(prevConfig => {
+          if (prevConfig.targetChatId && prevConfig.targetChat?.displayName.startsWith('⚠️')) {
+            const matchingChat = (chatsData.chats || []).find((c: TeamsConversation) => c.id === prevConfig.targetChatId);
+            if (matchingChat) {
+              console.log('✅ Upgraded chat config in-memory.');
+              return { ...prevConfig, targetChat: matchingChat };
+            }
+          }
+          return prevConfig;
+        });
+
         // Show cache status in console for debugging
         console.log(`📊 Chats loaded: ${chatsData.count} items, cached: ${chatsData.cached}`);
       } else {
@@ -329,7 +347,7 @@ export default function PRNotifierPage() {
             {/* Target Teams Chat */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Target Teams Chat
+                Target Chat or Channel
               </label>
               {authStatus.isAuthenticated ? (
                 chatsLoading ? (
@@ -377,54 +395,53 @@ export default function PRNotifierPage() {
                       </Tooltip>
                     </div>
                     <div className="space-y-3">
-                      <select
-                        value={config.targetChatId}
-                        onChange={(e) => setConfig(prev => ({ ...prev, targetChatId: e.target.value }))}
-                        className="input-field"
-                      >
-                        <option value="">Select a chat...</option>
-                        {teamsChats.map((chat) => (
-                          <option key={chat.id} value={chat.id}>
-                            {chat.displayName} ({chat.chatType})
-                          </option>
-                        ))}
-                      </select>
-                      
-                      {/* Chat Details */}
-                      {config.targetChatId && (
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          {(() => {
-                            const selectedChat = teamsChats.find(chat => chat.id === config.targetChatId);
-                            if (!selectedChat) return null;
-                            
-                            return (
-                              <div>
-                                <h4 className="font-medium text-blue-900 mb-2">
-                                  📋 Selected Chat Details
-                                </h4>
-                                <div className="text-sm text-blue-800 space-y-1">
-                                  <div><strong>Name:</strong> {selectedChat.displayName}</div>
-                                  <div><strong>Type:</strong> {selectedChat.chatType}</div>
-                                  <div><strong>Members:</strong> {selectedChat.memberCount}</div>
-                                  {selectedChat.members.length > 0 && (
-                                    <div>
-                                      <strong>Participants:</strong>
-                                      <ul className="ml-4 mt-1">
-                                        {selectedChat.members.map((member, index) => (
-                                          <li key={index} className="text-xs">
-                                            • {member.displayName}
-                                            {member.email && ` (${member.email})`}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
+                      <div className="w-full">
+                        <label htmlFor="targetChat" className="block text-sm font-medium text-gray-700">
+                          Target Chat or Channel
+                        </label>
+                        <select
+                          id="targetChat"
+                          value={config.targetChat?.id || ''}
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            const selectedChat = teamsChats.find(chat => chat.id === selectedId);
+                            setConfig({ ...config, targetChat: selectedChat || null });
+                          }}
+                          className="input-field mt-1"
+                          disabled={!authStatus.isAuthenticated || chatsLoading}
+                        >
+                          <option value="">-- Select a chat or channel --</option>
+                          {config.targetChat?.displayName.startsWith('⚠️') && (
+                            <option value={config.targetChat.id}>{config.targetChat.displayName}</option>
+                          )}
+                          {teamsChats.map((chat) => (
+                            <option key={chat.id} value={chat.id}>
+                              {chat.displayName}
+                            </option>
+                          ))}
+                        </select>
+                        {chatsLoading && <p className="text-sm text-gray-500 mt-1">Loading chats...</p>}
+                        {chatsError && <p className="text-sm text-red-600 mt-1">{chatsError}</p>}
+                        {!chatsLoading && !chatsError && authStatus.isAuthenticated && teamsChats.length === 0 && (
+                          <p className="text-sm text-gray-500 mt-1">No chats found or failed to load.</p>
+                        )}
+                        {/* Show selected chat type for clarity */}
+                        {config.targetChat && (
+                          <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg mt-2 text-sm">
+                            <p className="text-blue-800">
+                              Selected: <span className="font-semibold">{config.targetChat.displayName}</span>
+                            </p>
+                            <p className="text-blue-700 text-xs">
+                              Type: <span className="font-medium">{config.targetChat.type}</span>
+                              {config.targetChat.teamId && (
+                                <span className="ml-2">
+                                  (Team ID: <span className="font-mono text-xs">{config.targetChat.teamId}</span>)
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (

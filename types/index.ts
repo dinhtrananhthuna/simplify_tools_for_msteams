@@ -26,18 +26,19 @@ export interface Tool {
   updated_at: Date;
 }
 
-export interface WebhookLog {
-  id: number;
-  tool_id: string;
-  webhook_source: string;
-  event_type: string;
-  payload?: Record<string, any>;
-  processed_at?: Date;
-  status: 'success' | 'failed';
-  error_message?: string;
-  teams_message_id?: string;
-  created_at: Date;
-}
+// This will be replaced by Zod-inferred type
+// export interface WebhookLog {
+//   id: number;
+//   tool_id: string;
+//   webhook_source: string;
+//   event_type: string;
+//   payload?: Record<string, any>;
+//   processed_at?: Date;
+//   status: 'success' | 'failed';
+//   error_message?: string;
+//   teams_message_id?: string;
+//   created_at: Date;
+// }
 
 export interface ToolSetting {
   key: string;
@@ -169,29 +170,49 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   };
 }
 
-// ============ Form Types ============
+// ============ Custom Tool & Message Types ============
+
+export interface TeamsMessageTarget {
+  id: string;
+  displayName?: string;
+  type: 'group' | 'oneOnOne' | 'channel';
+  teamId?: string;
+}
 
 export interface PRNotifierConfig {
   azureDevOpsUrl: string;
-  targetChatId: string;
-  messageTemplate?: string;
   enableMentions: boolean;
   mentionUsers: string[];
+  targetChat?: TeamsMessageTarget;
+  targetChatId?: string; // For backward compatibility
 }
-
-
 
 // ============ Validation Schemas ============
 
+export const WebhookLogSchema = z.object({
+  id: z.number(),
+  tool_id: z.string(),
+  webhook_source: z.string(),
+  event_type: z.string(),
+  payload: z.record(z.string(), z.any()).optional(),
+  processed_at: z.date().optional(),
+  status: z.enum(['success', 'failed']),
+  teams_message_id: z.string().optional(),
+  error_message: z.string().optional(),
+  created_at: z.date(),
+});
+
+export type WebhookLog = z.infer<typeof WebhookLogSchema>;
+
+export const ToolConfigSchema = z.object({
+  created_at: z.date(),
+});
+
 export const PRNotifierConfigSchema = z.object({
-  azureDevOpsUrl: z.string().url('Invalid Azure DevOps URL'),
-  targetChatId: z.string().min(1, 'Please select a target chat'),
-  messageTemplate: z.string().optional(),
+  azureDevOpsUrl: z.string().url().default(''),
   enableMentions: z.boolean().default(false),
   mentionUsers: z.array(z.string()).default([]),
 });
-
-
 
 export const WebhookPayloadSchema = z.object({
   eventType: z.string(),

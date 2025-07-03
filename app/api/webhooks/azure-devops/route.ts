@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { sendSimpleMessage, formatPullRequestMessage, formatPullRequestMessageHTML } from '@/lib/teams';
+import {
+  sendSimpleMessage,
+  formatPullRequestMessage,
+  formatPullRequestMessageHTML,
+  TeamsMessageTarget,
+} from '@/lib/teams';
 import { executeQuery } from '@/lib/db';
 import type { PRNotifierConfig } from '@/types';
 
@@ -189,21 +194,35 @@ export async function POST(request: NextRequest) {
     
     // Get PR Notifier configuration
     const config = await getPRNotifierConfig();
-    if (!config) {
+    if (!config || (!config.targetChat && !config.targetChatId)) {
       await logWebhookEvent(
         webhookData.eventType || 'unknown',
         webhookData,
         'failed',
-        'PR Notifier not configured or not active'
+        'PR Notifier not configured, not active, or no target chat set'
       );
       webhookLogged = true;
       
       return Response.json(
-        { success: false, error: 'PR Notifier not configured' },
+        { success: false, error: 'PR Notifier not configured or no chat selected' },
         { status: 404 }
       );
     }
     
+    // Determine the target for the message
+    let teamsTarget: TeamsMessageTarget;
+    if (config.targetChat) {
+      teamsTarget = config.targetChat;
+    } else if (config.targetChatId) {
+      // Backward compatibility: Old config only has the ID.
+      // We have to assume it's a 'group' chat and has no teamId.
+      // This will fail for channels, user must re-save config.
+      teamsTarget = { id: config.targetChatId, type: 'group' };
+    } else {
+      // This case is handled by the check above, but for type safety
+      throw new Error('No target chat configured.');
+    }
+
     // Extract resource data with safe fallbacks
     const { resource } = webhookData;
     if (!resource || (!resource.title && !webhookData.message?.text)) {
@@ -248,52 +267,49 @@ export async function POST(request: NextRequest) {
       });
       
       const sendPromise = sendSimpleMessage(
-        config.targetChatId,
-        adaptiveCardMessage,
-        'adaptiveCard'
+        teamsTarget,
+        adaptiveCardMessage
       );
       
-      messageId = await Promise.race([sendPromise, timeoutPromise]) as string;
-      console.log('✅ Webhook: Teams Adaptive Card sent successfully');
+      const result = await Promise.race([sendPromise, timeoutPromise]);
+      messageId = result as string;
       
-    } catch (adaptiveCardError) {
-      console.log('⚠️ Adaptive Card failed, trying HTML fallback...', adaptiveCardError);
+    } catch (error: any) {
+      console.error('❌ Webhook: Adaptive Card send failed:', error.message);
+      messageType = 'HTML Fallback';
       
       try {
-        // Fallback to HTML message
+        console.log('📤 Webhook: Attempting to send HTML fallback to Teams...');
         const htmlMessage = formatPullRequestMessageHTML(prData);
-        messageType = 'HTML';
         
+        // Add timeout for Teams message sending
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Teams message send timeout')), 15000); // 15 second timeout
+          setTimeout(() => reject(new Error('Teams message send (fallback) timeout')), 15000); // 15s timeout
         });
         
         const sendPromise = sendSimpleMessage(
-          config.targetChatId,
+          teamsTarget,
           htmlMessage,
           'html'
         );
         
-        messageId = await Promise.race([sendPromise, timeoutPromise]) as string;
-        console.log('✅ Webhook: Teams HTML message sent successfully');
-        
-      } catch (htmlError) {
-        // Both methods failed
-        const errorMessage = htmlError instanceof Error ? htmlError.message : 'Unknown error';
-        
-        console.error('❌ Webhook: Failed to send Teams message:', htmlError);
+        const result = await Promise.race([sendPromise, timeoutPromise]);
+        messageId = result as string;
+
+      } catch (fallbackError: any) {
+        console.error('❌ Webhook: HTML fallback also failed:', fallbackError.message);
         
         // Log failure
         await logWebhookEvent(
           webhookData.eventType || 'unknown',
           webhookData,
           'failed',
-          errorMessage
+          fallbackError.message
         );
         webhookLogged = true;
         
         // Return more specific error messages
-        if (errorMessage.includes('timeout')) {
+        if (fallbackError.message.includes('timeout')) {
           return Response.json({
             success: false,
             error: 'Teams notification timed out. The webhook was processed but message sending failed.',
