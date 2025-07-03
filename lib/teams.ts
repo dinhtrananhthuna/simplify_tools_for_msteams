@@ -379,17 +379,28 @@ export class TeamsClient {
     if (isChannel) {
       endpoint = `/teams/${target.teamId}/channels/${target.id}/messages`;
       if (contentType === 'adaptiveCard') {
-        const attachmentId = crypto.randomUUID();
+        // For channels, Adaptive Cards are sent as attachments
+        let cardContent;
+        if (message && typeof message === 'object') {
+          // If message already has contentType and content structure, use the content part
+          if (message.contentType && message.content) {
+            cardContent = message.content;
+          } else if (message.type === 'AdaptiveCard') {
+            // If message is directly an Adaptive Card object
+            cardContent = message;
+          } else {
+            // Fallback: assume entire message is the card content
+            cardContent = message;
+          }
+        } else {
+          cardContent = message;
+        }
+        
         body = {
-          body: {
-            contentType: 'html',
-            content: `<attachment id="${attachmentId}"></attachment>`,
-          },
           attachments: [
             {
-              id: attachmentId,
               contentType: 'application/vnd.microsoft.card.adaptive',
-              content: JSON.stringify(message),
+              content: cardContent, // Must be object, not string!
             },
           ],
         };
@@ -405,11 +416,30 @@ export class TeamsClient {
       // This is a 1-on-1 or group chat
       endpoint = `/chats/${target.id}/messages`;
       if (contentType === 'adaptiveCard') {
+        // For chats, Adaptive Cards must be sent as attachments
+        let cardContent;
+        if (message && typeof message === 'object') {
+          // If message already has contentType and content structure, use the content part
+          if (message.contentType && message.content) {
+            cardContent = message.content;
+          } else if (message.type === 'AdaptiveCard') {
+            // If message is directly an Adaptive Card object
+            cardContent = message;
+          } else {
+            // Fallback: assume entire message is the card content
+            cardContent = message;
+          }
+        } else {
+          cardContent = message;
+        }
+        
         body = {
-          body: {
-            contentType: 'application/vnd.microsoft.card.adaptive',
-            content: JSON.stringify(message),
-          },
+          attachments: [
+            {
+              contentType: 'application/vnd.microsoft.card.adaptive',
+              content: cardContent, // Must be object, not string!
+            },
+          ],
         };
       } else {
         body = {

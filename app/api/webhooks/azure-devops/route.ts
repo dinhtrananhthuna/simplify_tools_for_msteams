@@ -331,9 +331,12 @@ export async function POST(request: NextRequest) {
     let messageType = 'Adaptive Card';
     
     try {
-      console.log('📤 Webhook: Attempting to send Adaptive Card to Teams...');
+      console.log('📤 Webhook: Sending HTML message to Teams...');
       
-      const adaptiveCardMessage = formatPullRequestMessage(prData);
+      // Microsoft Graph API for chat messages does NOT support Adaptive Cards
+      // Only HTML and text are supported contentTypes for body
+      const htmlMessage = formatPullRequestMessageHTML(prData);
+      console.log('📄 [WEBHOOK] HTML message preview:', htmlMessage.substring(0, 200) + '...');
       
       // Add timeout for Teams message sending
       const timeoutPromise = new Promise((_, reject) => {
@@ -342,59 +345,38 @@ export async function POST(request: NextRequest) {
       
       const sendPromise = sendSimpleMessage(
         teamsTarget,
-        adaptiveCardMessage
+        htmlMessage,
+        'html'
       );
       
       const result = await Promise.race([sendPromise, timeoutPromise]);
       messageId = result as string;
+      messageType = 'HTML Message';
       
     } catch (error: any) {
-      console.error('❌ Webhook: Adaptive Card send failed:', error.message);
-      messageType = 'HTML Fallback';
+      console.error('❌ Webhook: HTML message send failed:', error.message);
       
-      try {
-        console.log('📤 Webhook: Attempting to send HTML fallback to Teams...');
-        const htmlMessage = formatPullRequestMessageHTML(prData);
-        
-        // Add timeout for Teams message sending
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Teams message send (fallback) timeout')), 15000); // 15s timeout
-        });
-        
-        const sendPromise = sendSimpleMessage(
-          teamsTarget,
-          htmlMessage,
-          'html'
-        );
-        
-        const result = await Promise.race([sendPromise, timeoutPromise]);
-        messageId = result as string;
-
-      } catch (fallbackError: any) {
-        console.error('❌ Webhook: HTML fallback also failed:', fallbackError.message);
-        
-        // Log failure
-        await logWebhookEvent(
-          webhookData.eventType || 'unknown',
-          webhookData,
-          'failed',
-          fallbackError.message
-        );
-        webhookLogged = true;
-        
-        // Return more specific error messages
-        if (fallbackError.message.includes('timeout')) {
-          return Response.json({
-            success: false,
-            error: 'Teams notification timed out. The webhook was processed but message sending failed.',
-          }, { status: 202 }); // 202 Accepted - webhook processed but message may be delayed
-        }
-        
-        return Response.json(
-          { success: false, error: 'Failed to send Teams notification' },
-          { status: 500 }
-        );
+      // Log failure
+      await logWebhookEvent(
+        webhookData.eventType || 'unknown',
+        webhookData,
+        'failed',
+        error.message
+      );
+      webhookLogged = true;
+      
+      // Return more specific error messages
+      if (error.message.includes('timeout')) {
+        return Response.json({
+          success: false,
+          error: 'Teams notification timed out. The webhook was processed but message sending failed.',
+        }, { status: 202 }); // 202 Accepted - webhook processed but message may be delayed
       }
+      
+      return Response.json(
+        { success: false, error: 'Failed to send Teams notification' },
+        { status: 500 }
+      );
     }
       
     // Log success
