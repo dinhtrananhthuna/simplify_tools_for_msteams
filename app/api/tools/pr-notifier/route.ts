@@ -55,8 +55,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Validate required fields
-    if (!parsedConfig.azureDevOpsUrl || !parsedConfig.targetChatId) {
+    // Normalize config: derive targetChatId from targetChat if needed
+    if (!parsedConfig.targetChatId && parsedConfig.targetChat?.id) {
+      (parsedConfig as any).targetChatId = parsedConfig.targetChat.id;
+    }
+
+    // Clean up mentionUsers: remove empty strings
+    if (Array.isArray(parsedConfig.mentionUsers)) {
+      (parsedConfig as any).mentionUsers = parsedConfig.mentionUsers.filter((u: string) => !!u && u.trim().length > 0);
+    }
+
+    // Validate required fields (accept either targetChat or targetChatId)
+    const hasTarget = !!parsedConfig.targetChatId || !!parsedConfig.targetChat?.id;
+    if (!parsedConfig.azureDevOpsUrl || !hasTarget) {
       return Response.json({
         success: false,
         error: 'Azure DevOps URL and target chat are required',
