@@ -83,9 +83,9 @@ export async function POST(request: NextRequest) {
     if (existing.length === 0) {
       // Create new tool
       await executeQuery(`
-        INSERT INTO tools (id, name, description, icon, category, is_active, config, created_at, updated_at, tool_type)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), $8)`,
-        ['pr-notifier', 'Pull Request Notifier', 'Tự động thông báo team về pull requests mới từ Azure DevOps', '🔔', 'automation', is_active, JSON.stringify(parsedConfig), 'pr_notifier']
+        INSERT INTO tools (id, name, description, icon, category, is_active, config, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+        ['pr-notifier', 'Pull Request Notifier', 'Tự động thông báo team về pull requests mới từ Azure DevOps', '🔔', 'automation', is_active, JSON.stringify(parsedConfig)]
       );
     } else {
       // Update existing tool
