@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const params: any[] = [];
     
     if (toolId) {
-      query += ' WHERE tool_id = ?';
+      query += ' WHERE tool_id = $1';
       params.push(toolId);
     }
 

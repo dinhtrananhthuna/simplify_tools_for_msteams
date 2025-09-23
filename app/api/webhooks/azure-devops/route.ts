@@ -98,7 +98,7 @@ async function getPRNotifierConfig(): Promise<PRNotifierConfig | null> {
   try {
     console.log('📋 [WEBHOOK] Querying database for PR Notifier config...');
     const result = await executeQuery<{ config: any }>(
-      'SELECT config FROM tools WHERE id = ? AND is_active = true',
+      'SELECT config FROM tools WHERE id = $1 AND is_active = true',
       ['pr-notifier']
     );
     
@@ -161,7 +161,7 @@ async function logWebhookEvent(
     await executeQuery(`
       INSERT INTO webhook_logs 
       (tool_id, webhook_source, event_type, payload, status, teams_message_id, error_message, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         'pr-notifier',
         'azure-devops',

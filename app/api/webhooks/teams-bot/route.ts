@@ -167,7 +167,7 @@ async function logWebhookEvent(
     await executeQuery(`
       INSERT INTO webhook_logs 
       (tool_id, webhook_source, event_type, payload, status, teams_message_id, error_message, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         'quickbug',
         'teams-bot',

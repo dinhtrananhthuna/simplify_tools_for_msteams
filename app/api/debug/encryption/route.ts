@@ -33,7 +33,7 @@ export async function GET() {
     // Check actual database token
     console.log('🔍 Checking actual database token...');
     const tokens = await executeQuerySingle<any>(
-      'SELECT refresh_token, access_token, created_at, expires_at FROM auth_tokens WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+      'SELECT refresh_token, access_token, created_at, expires_at FROM auth_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
       ['admin']
     );
     

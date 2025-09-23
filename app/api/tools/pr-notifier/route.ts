@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const result = await executeQuery<Tool>(
-      'SELECT * FROM tools WHERE id = ?',
+      'SELECT * FROM tools WHERE id = $1',
       ['pr-notifier']
     );
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Check if tool exists
     const existing = await executeQuery<Tool>(
-      'SELECT id FROM tools WHERE id = ?',
+      'SELECT id FROM tools WHERE id = $1',
       ['pr-notifier']
     );
 
@@ -73,15 +73,15 @@ export async function POST(request: NextRequest) {
       // Create new tool
       await executeQuery(`
         INSERT INTO tools (id, name, description, icon, category, is_active, config, created_at, updated_at, tool_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?)`,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), $8)`,
         ['pr-notifier', 'Pull Request Notifier', 'Tự động thông báo team về pull requests mới từ Azure DevOps', '🔔', 'automation', is_active, JSON.stringify(parsedConfig), 'pr_notifier']
       );
     } else {
       // Update existing tool
       await executeQuery(`
         UPDATE tools 
-        SET config = ?, is_active = ?, updated_at = NOW()
-        WHERE id = ?`,
+        SET config = $1, is_active = $2, updated_at = NOW()
+        WHERE id = $3`,
         [JSON.stringify(parsedConfig), is_active, 'pr-notifier']
       );
     }
