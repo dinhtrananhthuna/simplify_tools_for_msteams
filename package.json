@@ -12,10 +12,6 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:remove-bug-reports": "tsx scripts/migrate-remove-bug-reports.ts",
     "db:add-user-context": "tsx scripts/migrate-add-user-context.ts",
-    "db:setup-mysql": "tsx scripts/setup-mysql-db.ts",
-    "export:postgres": "tsx scripts/manual-export-postgres.ts",
-    "import:mysql": "tsx scripts/import-mysql-data.ts",
-    "test:mysql": "tsx scripts/test-mysql-migration.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -30,10 +26,8 @@
     "date-fns": "^3.0.6",
     "dotenv": "^16.3.1",
     "lucide-react": "^0.302.0",
-    "mysql2": "^3.14.1",
     "next": "^14.2.0",
     "pg": "^8.11.3",
-    "mysql2": "^3.6.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^2.6.0",

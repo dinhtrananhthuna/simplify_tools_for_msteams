@@ -1,25 +1,32 @@
-import mysql from 'mysql2/promise';
+import { Pool, PoolClient } from 'pg';
 
-// Singleton pattern cho serverless environment
-let pool: mysql.Pool | null = null;
+// Singleton pattern for serverless environment
+let pool: Pool | null = null;
 
-export function getDb(): mysql.Pool {
+export function getDb(): Pool {
   if (!pool) {
-    // Use object config for MariaDB connection
-    pool = mysql.createPool({
-      host: process.env.MYSQL_HOST || '103.9.76.10',
-      port: parseInt(process.env.MYSQL_PORT || '3306'),
-      user: process.env.MYSQL_USER || 'oyhumgag_sa',
-      password: process.env.MYSQL_PASSWORD || 'a%PnNf}(%QB_o+*R',
-      database: process.env.MYSQL_DATABASE || 'oyhumgag_mstoolsuite',
-      charset: 'utf8mb4',
-      connectionLimit: 1, // Minimal connections cho serverless
-      connectTimeout: 30000
+    // Use DATABASE_URL for PostgreSQL connection (Neon compatible)
+    const connectionString = process.env.DATABASE_URL;
+    
+    if (!connectionString) {
+      throw new Error('DATABASE_URL environment variable is required for PostgreSQL connection');
+    }
+    
+    pool = new Pool({
+      connectionString,
+      max: 1, // Minimal connections for serverless
+      connectionTimeoutMillis: 30000,
+      idleTimeoutMillis: 30000,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     });
 
     // Handle pool connection
-    pool.on('connection', (connection) => {
-      console.log('MariaDB connection established as id ' + connection.threadId);
+    pool.on('connect', (client) => {
+      console.log('PostgreSQL connection established');
+    });
+    
+    pool.on('error', (err) => {
+      console.error('PostgreSQL pool error:', err);
     });
   }
 
@@ -38,10 +45,10 @@ export async function closeDb(): Promise<void> {
 export async function testConnection(): Promise<boolean> {
   try {
     const db = getDb();
-    const [rows] = await db.execute('SELECT NOW() as current_time');
-    return Array.isArray(rows) && rows.length > 0;
+    const result = await db.query('SELECT NOW() as current_time');
+    return result.rows && result.rows.length > 0;
   } catch (error) {
-    console.error('MariaDB connection test failed:', error);
+    console.error('PostgreSQL connection test failed:', error);
     return false;
   }
 }
@@ -54,10 +61,10 @@ export async function executeQuery<T = any>(
   const db = getDb();
   
   try {
-    const [rows] = await db.execute(query, params);
-    return rows as T[];
+    const result = await db.query(query, params);
+    return result.rows as T[];
   } catch (error) {
-    console.error('MariaDB query execution failed:', { query, params, error });
+    console.error('PostgreSQL query execution failed:', { query, params, error });
     throw new Error(`Database query failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -73,22 +80,22 @@ export async function executeQuerySingle<T = any>(
 
 // Execute transaction
 export async function executeTransaction<T>(
-  callback: (connection: mysql.PoolConnection) => Promise<T>
+  callback: (client: PoolClient) => Promise<T>
 ): Promise<T> {
   const db = getDb();
-  const connection = await db.getConnection();
+  const client = await db.connect();
 
   try {
-    await connection.beginTransaction();
+    await client.query('BEGIN');
     
-    const result = await callback(connection);
+    const result = await callback(client);
     
-    await connection.commit();
+    await client.query('COMMIT');
     return result;
   } catch (error) {
-    await connection.rollback();
+    await client.query('ROLLBACK');
     throw error;
   } finally {
-    connection.release();
+    client.release();
   }
-} 
+}

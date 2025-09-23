@@ -59,6 +59,41 @@ const createTables = async () => {
     `);
     console.log('✅ tools table created');
 
+    // 2.1 Migrations for tools table (ensure new columns/constraints exist)
+    // Add icon column if missing
+    const iconColumnExists = await pool.query(`
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'tools' AND column_name = 'icon'
+    `);
+
+    if (iconColumnExists.rowCount === 0) {
+      await pool.query(`ALTER TABLE tools ADD COLUMN icon TEXT DEFAULT '🛠️'`);
+      console.log("✅ Added 'icon' column to tools table");
+    }
+
+    // Ensure category constraint allows 'development' in addition to existing values
+    // Drop existing category check constraint if present, then recreate with extended list
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 
+          FROM pg_constraint c
+          JOIN pg_class t ON c.conrelid = t.oid
+          WHERE t.relname = 'tools' AND c.conname = 'tools_category_check'
+        ) THEN
+          ALTER TABLE tools DROP CONSTRAINT tools_category_check;
+        END IF;
+      END$$;
+    `);
+
+    await pool.query(`
+      ALTER TABLE tools 
+      ADD CONSTRAINT tools_category_check 
+      CHECK (category IN ('automation', 'productivity', 'integration', 'development'))
+    `);
+    console.log("✅ Ensured 'category' constraint includes 'development'");
+
     // 3. Webhook Logs Table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS webhook_logs (
