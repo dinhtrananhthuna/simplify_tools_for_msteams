@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Tooltip,
   TooltipContent,
@@ -65,6 +65,15 @@ export default function WebhooksPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   
+  // Debug logs
+  console.log('🔍 WebhooksPage render:', { 
+    logsCount: logs.length, 
+    stats, 
+    isLoading, 
+    isInitialLoad,
+    totalCount 
+  });
+  
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -73,29 +82,9 @@ export default function WebhooksPage() {
   const [sortBy, setSortBy] = useState<'created_at' | 'status' | 'event_type'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Debounce search term
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Initial load
-  useEffect(() => {
-    loadWebhookLogs(true);
-    loadWebhookStats();
-  }, []);
-
-  // Load data when filters change (not initial load)
-  useEffect(() => {
-    if (!isLoading) {
-      loadWebhookLogs(false);
-    }
-  }, [currentPage, pageSize, filter, debouncedSearchTerm, sortBy, sortOrder]);
-
-  const loadWebhookLogs = async (isInitial: boolean = false) => {
+  const loadWebhookLogs = useCallback(async (isInitial: boolean = false) => {
+    console.log('🔄 Loading webhook logs...', { isInitial, currentPage, pageSize, filter });
+    
     if (isInitial) {
       setIsLoading(true);
     } else {
@@ -112,19 +101,27 @@ export default function WebhooksPage() {
         sortOrder
       });
 
-      const response = await fetch(`/api/webhooks/logs?${params}`);
+      const url = `/api/webhooks/logs?${params}`;
+      console.log('📡 Fetching:', url);
+      
+      const response = await fetch(url);
+      console.log('📡 Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('📡 Response data:', data);
         setLogs(data.logs || []);
         setTotalPages(data.pagination?.totalPages || 0);
         setTotalCount(data.pagination?.total || 0);
+      } else {
+        console.error('❌ Response not ok:', response.status, response.statusText);
       }
       
       if (isInitial) {
         setIsInitialLoad(false);
       }
     } catch (error) {
-      console.error('Failed to load webhook logs:', error);
+      console.error('❌ Failed to load webhook logs:', error);
     } finally {
       if (isInitial) {
         setIsLoading(false);
@@ -132,22 +129,50 @@ export default function WebhooksPage() {
         setIsLoadingEvents(false);
       }
     }
-  };
+  }, [currentPage, pageSize, filter, debouncedSearchTerm, sortBy, sortOrder]);
 
-  const loadWebhookStats = async () => {
+  const loadWebhookStats = useCallback(async () => {
+    console.log('📊 Loading webhook stats...');
     setIsLoadingStats(true);
     try {
       const response = await fetch('/api/webhooks/stats');
+      console.log('📊 Stats response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('📊 Stats response data:', data);
         setStats(data);
+      } else {
+        console.error('❌ Stats response not ok:', response.status, response.statusText);
       }
     } catch (error) {
-      console.error('Failed to load webhook stats:', error);
+      console.error('❌ Failed to load webhook stats:', error);
     } finally {
       setIsLoadingStats(false);
     }
-  };
+  }, []);
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Initial load
+  useEffect(() => {
+    loadWebhookLogs(true);
+    loadWebhookStats();
+  }, [loadWebhookLogs, loadWebhookStats]);
+
+  // Load data when filters change (not initial load)
+  useEffect(() => {
+    if (!isInitialLoad) {
+      loadWebhookLogs(false);
+    }
+  }, [isInitialLoad, loadWebhookLogs]);
 
   const handleCopyAzureDevOpsUrl = async () => {
     try {
