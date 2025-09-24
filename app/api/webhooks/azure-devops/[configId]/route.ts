@@ -28,12 +28,12 @@ const AzureDevOpsWebhookSchema = z.object({
     text: z.string(),
     html: z.string(),
     markdown: z.string(),
-  }).optional(),
+  }).nullable().optional(),
   detailedMessage: z.object({
     text: z.string(),
     html: z.string(),
     markdown: z.string(),
-  }).optional(),
+  }).nullable().optional(),
   resource: z.object({
     pullRequestId: z.number().optional(),
     id: z.number().optional(),
