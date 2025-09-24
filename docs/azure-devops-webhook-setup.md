@@ -21,10 +21,12 @@ AZURE_DEVOPS_SKIP_SIGNATURE="true"
    - **Event**: Pull request created (or other PR events)
    - **Repository**: Select your repository
 6. Configure the action:
-   - **URL**: `https://your-domain.vercel.app/api/webhooks/azure-devops`
+   - **URL**: `https://your-domain.vercel.app/api/webhooks/azure-devops/[CONFIG_ID]`
    - **Resource details to send**: All
    - **Messages to send**: All
    - **Detailed messages to send**: All
+
+**Note**: Replace `[CONFIG_ID]` with the actual configuration ID from the PR Configurations page.
 
 ### 3. Teams Integration
 

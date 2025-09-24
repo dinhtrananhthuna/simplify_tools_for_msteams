@@ -151,11 +151,12 @@ export default function WebhooksPage() {
 
   const handleCopyAzureDevOpsUrl = async () => {
     try {
-      const url = `${window.location.origin}/api/webhooks/azure-devops`;
+      // Use the new multi-configuration endpoint format
+      const url = `${window.location.origin}/api/webhooks/azure-devops/[configId]`;
       await navigator.clipboard.writeText(url);
       toast({
         variant: "success",
-        description: "Đã copy Azure DevOps webhook URL thành công! 📋",
+        description: "Đã copy Azure DevOps webhook URL template thành công! 📋",
       });
     } catch (error) {
       toast({
@@ -280,7 +281,7 @@ export default function WebhooksPage() {
               </label>
               <div className="flex items-center space-x-2">
                 <Input
-                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/azure-devops`}
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/azure-devops/[configId]`}
                   readOnly
                   className="font-mono text-sm"
                 />
@@ -289,7 +290,7 @@ export default function WebhooksPage() {
                 </Button>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Sử dụng URL này trong Azure DevOps Service Hooks
+                Thay [configId] bằng ID configuration cụ thể. Xem PR Configurations để lấy URL đầy đủ.
               </p>
             </div>
             
