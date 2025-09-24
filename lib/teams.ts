@@ -254,17 +254,42 @@ export class TeamsClient {
     const fullUrl = endpoint.startsWith('https://') 
       ? endpoint
       : `https://graph.microsoft.com/v1.0${endpoint}`;
-      
+    
     console.log(`[TeamsClient] Making request to: ${fullUrl}`);
 
-    const response = await fetch(fullUrl, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
+    const doFetch = async () => {
+      return fetch(fullUrl, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
+    };
+
+    // First attempt
+    let response = await doFetch();
+
+    // If unauthorized due to expired token, try to refresh once and retry
+    if (!response.ok && response.status === 401) {
+      const errorTextPreview = await response.text();
+      const shouldRetry = /InvalidAuthenticationToken|token is expired|Lifetime validation failed/i.test(errorTextPreview);
+      if (shouldRetry) {
+        console.warn('[TeamsClient] 401 Invalid/Expired token detected. Attempting to refresh token and retry once...');
+        try {
+          const refreshedToken = await getValidAuthToken();
+          if (refreshedToken) {
+            this.accessToken = refreshedToken;
+            response = await doFetch();
+          } else {
+            console.error('[TeamsClient] Token refresh returned null. Cannot retry request.');
+          }
+        } catch (refreshErr) {
+          console.error('[TeamsClient] Token refresh failed:', refreshErr);
+        }
+      }
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -281,8 +306,6 @@ export class TeamsClient {
     try {
       return JSON.parse(text);
     } catch (e) {
-      // If it's not JSON, it could be a different type of response.
-      // For now, we'll just log and return the raw text.
       console.warn('[TeamsClient] Response was not valid JSON, returning raw text.');
       return text;
     }
