@@ -7,7 +7,7 @@ import {
   TeamsMessageTarget,
 } from '@/lib/teams';
 import { executeQuery } from '@/lib/db';
-import type { PRNotifierConfig } from '@/types';
+import type { PRConfiguration } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,64 +93,33 @@ function validateWebhookSignature(request: NextRequest, body: string): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
-// Get PR Notifier configuration
-async function getPRNotifierConfig(): Promise<PRNotifierConfig | null> {
+// Get first active PR configuration (for legacy webhook compatibility)
+async function getFirstPRConfiguration(): Promise<PRConfiguration | null> {
   try {
-    console.log('📋 [WEBHOOK] Querying database for PR Notifier config...');
-    const result = await executeQuery<{ config: any }>(
-      'SELECT config FROM tools WHERE id = $1 AND is_active = true',
-      ['pr-notifier']
+    console.log('📋 [WEBHOOK] Querying database for first active PR configuration...');
+    const result = await executeQuery<PRConfiguration>(
+      'SELECT * FROM pr_configurations WHERE is_active = true ORDER BY created_at ASC LIMIT 1'
     );
     
     if (!result || result.length === 0) {
-      console.log('❌ [WEBHOOK] No active PR Notifier found in database');
+      console.log('❌ [WEBHOOK] No active PR configuration found');
       return null;
     }
     
-    let config = result[0]?.config;
-    console.log('📊 [WEBHOOK] Raw config from database:', typeof config, JSON.stringify(config));
-    
-    if (!config) {
-      console.log('❌ [WEBHOOK] Config is null/undefined');
-      return null;
-    }
-    
-    // Handle double-encoded JSON strings
-    if (typeof config === 'string') {
-      try {
-        console.log('🔄 [WEBHOOK] Parsing config string...');
-        config = JSON.parse(config);
-        console.log('✅ [WEBHOOK] First parse successful, type:', typeof config);
-        
-        // Check if it's still a string (double-encoded)
-        if (typeof config === 'string') {
-          console.log('🔄 [WEBHOOK] Config is still string, parsing again...');
-          config = JSON.parse(config);
-          console.log('✅ [WEBHOOK] Second parse successful, type:', typeof config);
-        }
-      } catch (parseError) {
-        console.error('❌ [WEBHOOK] Failed to parse config JSON:', parseError);
-        return null;
-      }
-    }
-    
-    console.log('📊 [WEBHOOK] Final parsed config:', JSON.stringify(config, null, 2));
-    console.log('🔍 [WEBHOOK] Config validation:', {
-      hasTargetChat: !!config?.targetChat,
-      hasTargetChatId: !!config?.targetChatId,
-      targetChatId: config?.targetChat?.id || config?.targetChatId,
-      targetChatType: config?.targetChat?.type
-    });
+    const config = result[0];
+    console.log(`✅ [WEBHOOK] Found config: ${config.name}`);
+    console.log(`🎯 [WEBHOOK] Target: ${config.target_chat_name} (${config.target_chat_id})`);
     
     return config;
   } catch (error) {
-    console.error('❌ [WEBHOOK] Failed to get PR notifier config:', error);
+    console.error('❌ [WEBHOOK] Failed to get PR configuration:', error);
     return null;
   }
 }
 
-// Log webhook event
+// Log webhook event with configuration reference
 async function logWebhookEvent(
+  configId: string | null,
   eventType: string,
   payload: any,
   status: 'success' | 'failed',
@@ -160,9 +129,10 @@ async function logWebhookEvent(
   try {
     await executeQuery(`
       INSERT INTO webhook_logs 
-      (tool_id, webhook_source, event_type, payload, status, teams_message_id, error_message, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      (config_id, tool_id, webhook_source, event_type, payload, status, teams_message_id, error_message, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
+        configId,
         'pr-notifier',
         'azure-devops',
         eventType,
@@ -206,7 +176,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ [WEBHOOK] JSON parsing failed:', error);
       
       // Log parsing failure
-      await logWebhookEvent('unknown', { error: 'JSON parsing failed' }, 'failed', 'Invalid JSON format');
+      await logWebhookEvent(null, 'unknown', { error: 'JSON parsing failed' }, 'failed', 'Invalid JSON format');
       webhookLogged = true;
       
       return Response.json(
@@ -224,7 +194,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ [WEBHOOK] Invalid webhook signature');
       
       // Log signature validation failure
-      await logWebhookEvent(webhookData.eventType || 'unknown', webhookData, 'failed', 'Invalid signature');
+      await logWebhookEvent(null, webhookData.eventType || 'unknown', webhookData, 'failed', 'Invalid signature');
       webhookLogged = true;
       
       return Response.json(
@@ -244,6 +214,7 @@ export async function POST(request: NextRequest) {
     if (!webhookData.eventType?.includes('pullrequest') && !webhookData.eventType?.includes('git.pullrequest')) {
       console.log('⚠️ [WEBHOOK] Event is not a PR event, skipping processing');
       await logWebhookEvent(
+        null,
         webhookData.eventType || 'unknown', 
         webhookData, 
         'success',
@@ -257,50 +228,75 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    // Get PR Notifier configuration
-    console.log('⚙️ [WEBHOOK] Getting PR Notifier configuration...');
-    const config = await getPRNotifierConfig();
+    // Get first active PR configuration (legacy compatibility)
+    console.log('⚙️ [WEBHOOK] Getting first active PR configuration...');
+    const config = await getFirstPRConfiguration();
     console.log('⚙️ [WEBHOOK] Config result:', {
       hasConfig: !!config,
-      hasTargetChat: !!config?.targetChat,
-      hasTargetChatId: !!config?.targetChatId,
+      configName: config?.name,
+      targetChatId: config?.target_chat_id,
       configPreview: config ? JSON.stringify(config, null, 2) : 'null'
     });
     
-    if (!config || (!config.targetChat && !config.targetChatId)) {
-      console.log('❌ [WEBHOOK] No valid PR Notifier configuration found');
+    if (!config || !config.target_chat_id) {
+      console.log('❌ [WEBHOOK] No valid PR configuration found');
       await logWebhookEvent(
+        config?.id || null,
         webhookData.eventType || 'unknown',
         webhookData,
         'failed',
-        'PR Notifier not configured, not active, or no target chat set'
+        'No active PR configuration found or no target chat set'
       );
       webhookLogged = true;
       
       return Response.json(
-        { success: false, error: 'PR Notifier not configured or no chat selected' },
+        { success: false, error: 'No active PR configuration found' },
         { status: 404 }
       );
     }
     
-    // Determine the target for the message
-    let teamsTarget: TeamsMessageTarget;
-    if (config.targetChat) {
-      teamsTarget = config.targetChat;
-    } else if (config.targetChatId) {
-      // Backward compatibility: Old config only has the ID.
-      // We have to assume it's a 'group' chat and has no teamId.
-      // This will fail for channels, user must re-save config.
-      teamsTarget = { id: config.targetChatId, type: 'group' };
-    } else {
-      // This case is handled by the check above, but for type safety
-      throw new Error('No target chat configured.');
+    // Verify this webhook is for the correct organization
+    const resourceOrgUrl = webhookData.resource?.repository?.webUrl || webhookData.resource?.repository?.url;
+    if (resourceOrgUrl && !resourceOrgUrl.includes(config.azure_devops_org_url.replace('https://', ''))) {
+      console.log(`⚠️ [WEBHOOK] Organization mismatch - expected: ${config.azure_devops_org_url}, got: ${resourceOrgUrl}`);
+      await logWebhookEvent(config.id, webhookData.eventType || 'unknown', webhookData, 'failed', 'Organization URL mismatch');
+      webhookLogged = true;
+      
+      return Response.json({
+        success: false,
+        error: 'Organization URL mismatch',
+      }, { status: 400 });
     }
+    
+    // Filter by project if specified
+    if (config.azure_devops_project) {
+      const projectFromUrl = resourceOrgUrl?.split('/').pop()?.split('?')[0];
+      if (projectFromUrl && projectFromUrl !== config.azure_devops_project) {
+        console.log(`ℹ️ [WEBHOOK] Project filter mismatch - expected: ${config.azure_devops_project}, got: ${projectFromUrl}`);
+        await logWebhookEvent(config.id, webhookData.eventType || 'unknown', webhookData, 'success', 'Event ignored (project filter mismatch)');
+        webhookLogged = true;
+        
+        return Response.json({
+          success: true,
+          message: 'Event ignored (project filter mismatch)',
+          expectedProject: config.azure_devops_project,
+          actualProject: projectFromUrl,
+        });
+      }
+    }
+    
+    // Construct Teams target from new configuration format
+    const teamsTarget: TeamsMessageTarget = {
+      id: config.target_chat_id,
+      type: (config.target_chat_type as any) || 'group',
+      teamId: config.target_team_id || undefined,
+    };
 
     // Extract resource data with safe fallbacks
     const { resource } = webhookData;
     if (!resource || (!resource.title && !webhookData.message?.text)) {
       await logWebhookEvent(
+        config.id,
         webhookData.eventType || 'unknown',
         webhookData,
         'failed',
@@ -323,7 +319,7 @@ export async function POST(request: NextRequest) {
       targetBranch: resource?.targetRefName?.replace('refs/heads/', '') || 'unknown',
       url: resource?._links?.web?.href || resource?.url || resource?.repository?.url || '#',
       description: resource?.description?.trim() || webhookData.message?.text,
-      mentions: config.enableMentions ? config.mentionUsers : [],
+      mentions: config.enable_mentions ? config.mention_users : [],
     };
     
     // Send Adaptive Card notification first, fallback to HTML if fails
@@ -380,6 +376,7 @@ export async function POST(request: NextRequest) {
         
         // Log partial success with fallback
         await logWebhookEvent(
+          config.id,
           webhookData.eventType || 'unknown',
           webhookData,
           'success',
@@ -393,6 +390,7 @@ export async function POST(request: NextRequest) {
         
         // Log complete failure
         await logWebhookEvent(
+          config.id,
           webhookData.eventType || 'unknown',
           webhookData,
           'failed',
@@ -417,6 +415,7 @@ export async function POST(request: NextRequest) {
       
     // Log success
     await logWebhookEvent(
+      config.id,
       webhookData.eventType,
       webhookData,
       'success',
@@ -439,6 +438,7 @@ export async function POST(request: NextRequest) {
     // Log unexpected error if not already logged
     if (!webhookLogged) {
       await logWebhookEvent(
+        null,
         'unknown',
         { error: errorMessage },
         'failed',

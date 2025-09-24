@@ -10,10 +10,10 @@ export default function ToolsPage() {
     {
       id: 'pr-notifier',
       name: 'Pull Request Notifier',
-      description: 'Tự động gửi thông báo PR từ Azure DevOps đến Teams chat',
+      description: 'Tự động gửi thông báo PR từ Azure DevOps đến Teams chat (Multiple Configurations)',
       icon: '🔔',
       status: 'active',
-      href: '/admin/tools/pr-notifier'
+      href: '/admin/pr-configurations'
     },
     {
       id: 'quickbug',
