@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { executeQuery } from '@/lib/db';
-import { validateBasicAuth, createAuthResponse } from '@/lib/auth';
 import { PRConfigurationInputSchema, PRConfiguration } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -13,11 +12,6 @@ interface RouteParams {
 
 // GET /api/pr-configurations/[id] - Get specific PR configuration
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  // Require basic authentication for admin operations
-  if (!validateBasicAuth(request)) {
-    return createAuthResponse();
-  }
-
   try {
     const { id } = params;
     console.log(`📋 [PR-CONFIGS] Getting configuration ${id}...`);
@@ -51,11 +45,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PUT /api/pr-configurations/[id] - Update PR configuration
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  // Require basic authentication for admin operations
-  if (!validateBasicAuth(request)) {
-    return createAuthResponse();
-  }
-
   try {
     const { id } = params;
     const body = await request.json();
@@ -160,11 +149,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/pr-configurations/[id] - Delete PR configuration
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  // Require basic authentication for admin operations
-  if (!validateBasicAuth(request)) {
-    return createAuthResponse();
-  }
-
   try {
     const { id } = params;
     console.log(`🗑️ [PR-CONFIGS] Deleting configuration ${id}...`);

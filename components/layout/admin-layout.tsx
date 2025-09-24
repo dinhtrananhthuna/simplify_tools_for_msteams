@@ -7,9 +7,13 @@ const navigation = [
   { name: '📊 Dashboard', href: '/admin' },
   { name: '🔐 Teams Auth', href: '/admin/auth' },
   { name: '🔧 Tools', href: '/admin/tools' },
-  { name: '🔔 PR Configurations', href: '/admin/pr-configurations' },
   { name: '⚙️ Settings', href: '/admin/settings' },
   { name: '🔗 Webhooks', href: '/admin/webhooks' },
+];
+
+const toolsSubmenu = [
+  { name: '🔔 PR Configurations', href: '/admin/pr-configurations' },
+  { name: '🐞 Quick Bug Reporter', href: '/admin/tools/quickbug' },
 ];
 
 const debuggingItems = [
@@ -75,6 +79,26 @@ export default function AdminLayout({ children, title = "Admin Panel" }: AdminLa
                   >
                     {item.name}
                   </Link>
+                  
+                  {/* Show Tools submenu when Tools is active or when in Tools section */}
+                  {item.name === '🔧 Tools' && (isActive(item.href) || pathname?.startsWith('/admin/tools') || pathname?.startsWith('/admin/pr-configurations')) && (
+                    <ul className="mt-1 space-y-1">
+                      {toolsSubmenu.map((subItem) => (
+                        <li key={subItem.name}>
+                          <Link
+                            href={subItem.href}
+                            className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ml-3 ${
+                              isActive(subItem.href)
+                                ? 'bg-teams-purple text-white'
+                                : 'text-gray-600 hover:text-teams-purple hover:bg-gray-50'
+                            }`}
+                          >
+                            {subItem.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
               

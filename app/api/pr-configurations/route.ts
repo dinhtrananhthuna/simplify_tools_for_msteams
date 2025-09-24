@@ -1,17 +1,11 @@
 import { NextRequest } from 'next/server';
 import { executeQuery } from '@/lib/db';
-import { validateBasicAuth, createAuthResponse } from '@/lib/auth';
 import { PRConfigurationInputSchema, PRConfiguration, PRConfigurationInput } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/pr-configurations - List all PR configurations
 export async function GET(request: NextRequest) {
-  // Require basic authentication for admin operations
-  if (!validateBasicAuth(request)) {
-    return createAuthResponse();
-  }
-
   try {
     console.log('📋 [PR-CONFIGS] Getting all PR configurations...');
     
@@ -39,11 +33,6 @@ export async function GET(request: NextRequest) {
 
 // POST /api/pr-configurations - Create new PR configuration
 export async function POST(request: NextRequest) {
-  // Require basic authentication for admin operations
-  if (!validateBasicAuth(request)) {
-    return createAuthResponse();
-  }
-
   try {
     const body = await request.json();
     console.log('📝 [PR-CONFIGS] Creating new configuration:', { name: body.name, org_url: body.azure_devops_org_url });

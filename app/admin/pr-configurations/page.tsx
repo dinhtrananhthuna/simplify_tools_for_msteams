@@ -107,11 +107,7 @@ export default function PRConfigurationsPage() {
 
   const loadConfigurations = async () => {
     try {
-      const response = await fetch('/api/pr-configurations', {
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${process.env.NEXT_PUBLIC_ADMIN_USER || 'admin'}:${process.env.NEXT_PUBLIC_ADMIN_PASS || 'admin'}`),
-        },
-      });
+      const response = await fetch('/api/pr-configurations');
       
       if (response.ok) {
         const data = await response.json();
@@ -195,7 +191,6 @@ export default function PRConfigurationsPage() {
         method,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Basic ' + btoa(`${process.env.NEXT_PUBLIC_ADMIN_USER || 'admin'}:${process.env.NEXT_PUBLIC_ADMIN_PASS || 'admin'}`),
         },
         body: JSON.stringify(formData),
       });
@@ -241,9 +236,6 @@ export default function PRConfigurationsPage() {
     try {
       const response = await fetch(`/api/pr-configurations/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${process.env.NEXT_PUBLIC_ADMIN_USER || 'admin'}:${process.env.NEXT_PUBLIC_ADMIN_PASS || 'admin'}`),
-        },
       });
 
       if (response.ok) {
