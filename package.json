@@ -12,6 +12,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:remove-bug-reports": "tsx scripts/migrate-remove-bug-reports.ts",
     "db:add-user-context": "tsx scripts/migrate-add-user-context.ts",
+    "db:migrate-multi-pr": "tsx scripts/migrate-multi-pr-configurations.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

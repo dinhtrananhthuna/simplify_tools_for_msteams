@@ -4,7 +4,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-This is a Next.js 14-based MS Teams automation tools suite that integrates with Azure DevOps and Microsoft Graph API. The project uses serverless architecture on Vercel with a PostgreSQL database backend (Neon Database). The primary tool is a Pull Request Notifier that sends Teams messages when Azure DevOps pull requests are created.
+This is a Next.js 14-based MS Teams automation tools suite that integrates with Azure DevOps and Microsoft Graph API. The project uses serverless architecture on Vercel with a PostgreSQL database backend (Neon Database). The primary tool is a multi-configuration Pull Request Notifier that supports multiple Azure DevOps organizations and Teams chat destinations.
 
 ## Essential Development Commands
 
@@ -54,6 +54,9 @@ npm run db:remove-bug-reports
 
 # Add user context to webhook logs
 npm run db:add-user-context
+
+# Migrate to multi-PR-configurations (one-time setup)
+npm run db:migrate-multi-pr
 ```
 
 ### Testing & Debug Scripts
@@ -111,6 +114,7 @@ tsx scripts/debug-pr-config.ts
 ### Directory Structure Conventions
 - `app/` - Next.js App Router with route groups
 - `app/(admin)/` - Protected admin interface routes
+- `app/admin/pr-configurations/` - Multi-configuration PR-Notifier management
 - `app/api/` - API endpoints organized by feature
 - `components/ui/` - shadcn/ui components
 - `components/layout/` - Reusable layout components
@@ -170,10 +174,12 @@ tsx scripts/debug-pr-config.ts
 - `tsconfig.json` - Path aliases, strict TypeScript configuration
 
 ### Database Schema
-- Core tables: `auth_tokens`, `tools`, `webhook_logs`, `tool_settings`
+- Core tables: `auth_tokens`, `tools`, `webhook_logs`, `tool_settings`, `pr_configurations`
+- Multi-configuration support: `pr_configurations` table for multiple Azure DevOps orgs
 - Proper indexing for performance in serverless environment
 - Automatic `updated_at` triggers
 - Foreign key constraints with cascade deletes
+- UUID-based primary keys for configurations
 
 ## Environment Variables
 
@@ -201,6 +207,20 @@ WEBHOOK_SECRET=random_secret_for_validation
 NEXTAUTH_URL=https://your-app.vercel.app
 VERCEL_URL=your-app.vercel.app
 ```
+
+## API Endpoints
+
+### PR Configurations Management
+- `GET /api/pr-configurations` - List all PR configurations
+- `POST /api/pr-configurations` - Create new configuration
+- `GET /api/pr-configurations/:id` - Get specific configuration
+- `PUT /api/pr-configurations/:id` - Update configuration
+- `DELETE /api/pr-configurations/:id` - Delete configuration
+
+### Webhook Endpoints
+- `POST /api/webhooks/azure-devops` - Legacy endpoint (routes to first active config)
+- `POST /api/webhooks/azure-devops/:configId` - Specific configuration endpoint
+- `GET /api/webhooks/azure-devops/:configId` - Get webhook info for configuration
 
 ## Common Development Tasks
 

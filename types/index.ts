@@ -187,6 +187,38 @@ export interface PRNotifierConfig {
   targetChatId?: string; // For backward compatibility
 }
 
+// New multi-configuration types
+export interface PRConfiguration {
+  id: string;
+  name: string;
+  azure_devops_org_url: string;
+  azure_devops_project?: string;
+  target_chat_id: string;
+  target_chat_name?: string;
+  target_chat_type?: string;
+  target_team_id?: string;
+  enable_mentions: boolean;
+  mention_users: string[];
+  webhook_secret?: string;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PRConfigurationInput {
+  name: string;
+  azure_devops_org_url: string;
+  azure_devops_project?: string;
+  target_chat_id: string;
+  target_chat_name?: string;
+  target_chat_type?: string;
+  target_team_id?: string;
+  enable_mentions?: boolean;
+  mention_users?: string[];
+  webhook_secret?: string;
+  is_active?: boolean;
+}
+
 // ============ Validation Schemas ============
 
 export const WebhookLogSchema = z.object({
@@ -212,6 +244,42 @@ export const PRNotifierConfigSchema = z.object({
   azureDevOpsUrl: z.string().url().default(''),
   enableMentions: z.boolean().default(false),
   mentionUsers: z.array(z.string()).default([]),
+});
+
+// Multi-configuration validation schemas
+export const PRConfigurationInputSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  azure_devops_org_url: z.string().url('Invalid Azure DevOps URL'),
+  azure_devops_project: z.string().optional(),
+  target_chat_id: z.string().min(1, 'Target chat is required'),
+  target_chat_name: z.string().optional(),
+  target_chat_type: z.enum(['group', 'channel', 'oneOnOne']).optional().default('group'),
+  target_team_id: z.string().optional(),
+  enable_mentions: z.boolean().default(false),
+  mention_users: z.array(z.string()).default([]),
+  webhook_secret: z.string().optional(),
+  is_active: z.boolean().default(true),
+});
+
+export const PRConfigurationUpdateSchema = PRConfigurationInputSchema.partial().extend({
+  id: z.string().uuid(),
+});
+
+export const PRConfigurationSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  azure_devops_org_url: z.string().url(),
+  azure_devops_project: z.string().nullable(),
+  target_chat_id: z.string(),
+  target_chat_name: z.string().nullable(),
+  target_chat_type: z.string(),
+  target_team_id: z.string().nullable(),
+  enable_mentions: z.boolean(),
+  mention_users: z.array(z.string()),
+  webhook_secret: z.string().nullable(),
+  is_active: z.boolean(),
+  created_at: z.date(),
+  updated_at: z.date(),
 });
 
 export const WebhookPayloadSchema = z.object({

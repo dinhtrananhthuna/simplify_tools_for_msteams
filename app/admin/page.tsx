@@ -52,12 +52,12 @@ export default function AdminDashboard() {
           </Link>
 
           <Link
-            href="/admin/tools/pr-notifier"
+            href="/admin/pr-configurations"
             className="card-compact text-center hover:border-teams-purple hover:bg-teams-purple hover:bg-opacity-5"
           >
             <div className="text-3xl mb-3">🔔</div>
-            <h3 className="text-card-title mb-2">Configure PR Notifier</h3>
-            <p className="text-meta">Set up Azure DevOps integration</p>
+            <h3 className="text-card-title mb-2">PR Configurations</h3>
+            <p className="text-meta">Manage multiple Azure DevOps integrations</p>
           </Link>
 
           <Link
@@ -152,7 +152,7 @@ export default function AdminDashboard() {
             <div className="flex items-center space-x-2">
               <span className="text-yellow-600">⏳</span>
               <span className="text-sm text-blue-700">
-                <Link href="/admin/tools/pr-notifier" className="text-link">Configure PR Notifier tool</Link>
+                <Link href="/admin/pr-configurations" className="text-link">Configure PR notification tools</Link>
               </span>
             </div>
             <div className="flex items-center space-x-2">
